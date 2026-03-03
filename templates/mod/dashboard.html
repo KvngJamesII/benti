@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Mod Dashboard – Eden SMS{% endblock %}
+
+{% block content %}
+{# ── ANNOUNCEMENT BANNERS ── #}
+{% if announcements %}
+{% for ann in announcements %}
+<div class="alert alert-{{ ann.variant }} d-flex align-items-start gap-2 mb-3" role="alert">
+    <i class="bi bi-megaphone-fill fs-5 mt-1"></i>
+    <div>
+        <strong>{{ ann.title }}</strong>
+        <div style="white-space: pre-wrap;">{{ ann.body }}</div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<h4 class="mb-4"><i class="bi bi-speedometer2 text-eden"></i> Moderator Dashboard</h4>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-primary"><i class="bi bi-people"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ total_users }}</div>
+                <div class="stat-label">My Users</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-success"><i class="bi bi-phone"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ total_numbers_allocated }}</div>
+                <div class="stat-label">Numbers Allocated</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-12">
+        <div class="stat-card">
+            <div class="stat-icon bg-eden"><i class="bi bi-chat-dots"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ today_sms }}</div>
+                <div class="stat-label">Today's SMS</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6>My Users</h6>
+            <a href="{{ url_for('mod.create_user') }}" class="btn btn-eden btn-sm"><i class="bi bi-person-plus"></i> New</a>
+        </div>
+        <div class="card eden-card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0">
+                        <thead><tr><th>User ID</th><th>Status</th><th>Balance</th></tr></thead>
+                        <tbody>
+                        {% for u in my_users %}
+                        <tr>
+                            <td>{{ u.user_id }}</td>
+                            <td>
+                                {% if u.is_banned %}<span class="badge bg-danger">Banned</span>
+                                {% else %}<span class="badge bg-success">Active</span>{% endif %}
+                            </td>
+                            <td>${{ '%.4f'|format(u.balance or 0) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-muted text-center">No users yet</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <h6 class="mb-2">Quick Actions</h6>
+        <div class="d-grid gap-2">
+            <a href="{{ url_for('mod.create_user') }}" class="btn btn-outline-eden">
+                <i class="bi bi-person-plus me-2"></i> Create New User
+            </a>
+            <a href="{{ url_for('mod.allocate_numbers') }}" class="btn btn-outline-eden">
+                <i class="bi bi-arrows-move me-2"></i> Allocate Numbers
+            </a>
+            <a href="{{ url_for('mod.my_users') }}" class="btn btn-outline-eden">
+                <i class="bi bi-people me-2"></i> Manage Users
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

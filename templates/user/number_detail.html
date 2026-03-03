@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ flag }} {{ country }} Numbers – Eden SMS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>
+        <a href="{{ url_for('user.my_numbers') }}" class="text-decoration-none text-muted"><i class="bi bi-arrow-left me-2"></i></a>
+        {{ flag }} {{ country }} – {{ numbers|length }} Numbers
+    </h4>
+    <a href="{{ url_for('user.download_numbers', country=country) }}" class="btn btn-eden btn-sm">
+        <i class="bi bi-download me-1"></i> Download .txt
+    </a>
+</div>
+
+<div class="card eden-card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Phone Number</th>
+                        <th>Assigned Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for n in numbers %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><code>{{ n.phone_number }}</code></td>
+                    <td>{{ n.allocated_at.strftime('%Y-%m-%d %H:%M') if n.allocated_at else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3" class="text-muted text-center py-4">No numbers</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

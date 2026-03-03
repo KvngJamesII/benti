@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}My Numbers – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-phone text-eden"></i> My Numbers</h4>
+
+{% if country_counts %}
+<div class="row g-3">
+    {% for country, count in country_counts %}
+    <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('user.number_detail', country=country) }}" class="text-decoration-none">
+            <div class="number-country-card">
+                <div class="country-flag">{{ country_flags.get(country, '🏳️') }}</div>
+                <div class="country-info">
+                    <div class="country-name">{{ country }}</div>
+                    <div class="country-count">{{ count }} numbers</div>
+                </div>
+                <div class="country-arrow">
+                    <i class="bi bi-chevron-right"></i>
+                </div>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card eden-card">
+    <div class="card-body text-center text-muted py-5">
+        <i class="bi bi-phone-flip" style="font-size: 3rem;"></i>
+        <h5 class="mt-3">No Numbers Assigned</h5>
+        <p>Contact your admin or moderator to get numbers allocated to your account.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

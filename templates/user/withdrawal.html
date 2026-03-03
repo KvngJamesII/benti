@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Withdrawal – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-wallet2 text-eden"></i> Withdrawal</h4>
+
+{# Important notice #}
+<div class="alert alert-info border-0">
+    <i class="bi bi-info-circle me-2"></i>
+    <strong>Min Withdrawal is ${{ min_withdrawal }}</strong> – Withdrawals are available on <strong>{{ withdrawal_day }}s</strong> only.
+    Payment will be automatically sent to your USDT BEP-20 wallet address.
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-eden"><i class="bi bi-wallet2"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">${{ '%.4f'|format(balance) }}</div>
+                <div class="stat-label">Available Balance</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card eden-card h-100">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Withdrawal Amount ($)</label>
+                        <input type="number" step="0.01" min="{{ min_withdrawal }}" max="{{ balance }}"
+                               class="form-control" id="amount" name="amount"
+                               placeholder="Min ${{ min_withdrawal }}" required>
+                    </div>
+
+                    {% if not current_user.wallet_address %}
+                    <div class="alert alert-warning py-2 mb-3">
+                        <small><i class="bi bi-exclamation-triangle me-1"></i>
+                        Set your wallet address in <a href="{{ url_for('user.settings') }}">Settings</a> first.</small>
+                    </div>
+                    {% else %}
+                    <p class="small text-muted mb-3">
+                        <i class="bi bi-wallet me-1"></i>To: <code>{{ current_user.wallet_address[:20] }}...{{ current_user.wallet_address[-6:] }}</code>
+                    </p>
+                    {% endif %}
+
+                    <button type="submit" class="btn btn-eden w-100"
+                            {% if balance < min_withdrawal or not current_user.wallet_address %}disabled{% endif %}>
+                        <i class="bi bi-send me-1"></i> Request Withdrawal
+                    </button>
+
+                    {% if balance < min_withdrawal %}
+                    <small class="text-muted d-block text-center mt-2">
+                        Need ${{ '%.4f'|format(min_withdrawal - balance) }} more to withdraw
+                    </small>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Withdrawal history #}
+<div class="card eden-card">
+    <div class="card-header">Withdrawal History</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Amount</th>
+                        <th>Wallet</th>
+                        <th>Status</th>
+                        <th>Requested</th>
+                        <th>Paid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for w in history %}
+                <tr>
+                    <td>{{ w.id }}</td>
+                    <td>${{ '%.4f'|format(w.amount) }}</td>
+                    <td><code class="small">{{ w.wallet_address[:16] }}...</code></td>
+                    <td>
+                        {% if w.status == 'pending' %}<span class="badge bg-warning">Pending</span>
+                        {% elif w.status == 'paid' %}<span class="badge bg-success">Paid</span>
+                        {% else %}<span class="badge bg-danger">Rejected</span>{% endif %}
+                    </td>
+                    <td>{{ w.requested_at.strftime('%Y-%m-%d %H:%M') if w.requested_at else '-' }}</td>
+                    <td>{{ w.paid_at.strftime('%Y-%m-%d %H:%M') if w.paid_at else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-muted text-center py-4">No withdrawals yet</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

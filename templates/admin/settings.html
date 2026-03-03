@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Settings – Admin – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-gear text-eden"></i> System Settings</h4>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card eden-card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="otp_rate" class="form-label">OTP Rate ($ per SMS)</label>
+                        <input type="number" step="0.001" class="form-control" id="otp_rate" name="otp_rate"
+                               value="{{ otp_rate }}" required>
+                        <div class="form-text">How much a user earns per OTP received.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="min_withdrawal" class="form-label">Minimum Withdrawal ($)</label>
+                        <input type="number" step="0.5" class="form-control" id="min_withdrawal" name="min_withdrawal"
+                               value="{{ min_withdrawal }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="max_numbers_per_user" class="form-label">Max Numbers per User (per 24hrs)</label>
+                        <input type="number" class="form-control" id="max_numbers_per_user" name="max_numbers_per_user"
+                               value="{{ max_numbers_per_user }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="withdrawal_day" class="form-label">Withdrawal Day</label>
+                        <select class="form-select" id="withdrawal_day" name="withdrawal_day">
+                            {% for d in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
+                            <option value="{{ d }}" {% if withdrawal_day == d %}selected{% endif %}>{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-eden">
+                        <i class="bi bi-check-lg"></i> Save Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card eden-card">
+            <div class="card-header">Current Settings</div>
+            <div class="card-body">
+                <table class="table table-dark mb-0">
+                    <tr><td>OTP Rate</td><td><strong>${{ otp_rate }}</strong> per SMS</td></tr>
+                    <tr><td>Min Withdrawal</td><td><strong>${{ min_withdrawal }}</strong></td></tr>
+                    <tr><td>Max Numbers/User/Day</td><td><strong>{{ max_numbers_per_user }}</strong></td></tr>
+                    <tr><td>Withdrawal Day</td><td><strong>{{ withdrawal_day }}</strong></td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

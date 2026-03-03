@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}SMS Stats – Admin – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-bar-chart text-eden"></i> SMS Statistics</h4>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-eden"><i class="bi bi-chat-dots"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ total_all }}</div>
+                <div class="stat-label">All-Time SMS</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-primary"><i class="bi bi-chat-text"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ today_count }}</div>
+                <div class="stat-label">Today</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-12">
+        <div class="stat-card">
+            <div class="stat-icon bg-info"><i class="bi bi-tags"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ service_stats|length }}</div>
+                <div class="stat-label">Services Detected</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Service breakdown #}
+{% if service_stats %}
+<div class="card eden-card mb-4">
+    <div class="card-header">SMS by Service</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead><tr><th>Service</th><th>Count</th></tr></thead>
+                <tbody>
+                {% for svc, cnt in service_stats %}
+                <tr><td>{{ svc }}</td><td><span class="badge bg-eden">{{ cnt }}</span></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Date filter #}
+<div class="card eden-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>SMS Messages</span>
+        <form class="d-flex gap-2" method="GET">
+            <input type="date" class="form-control form-control-sm" name="date" value="{{ date_str }}">
+            <button type="submit" class="btn btn-sm btn-eden">Filter</button>
+            <a href="{{ url_for('admin.sms_stats') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+        </form>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Range</th>
+                        <th>Number</th>
+                        <th>Payment</th>
+                        <th>Message</th>
+                        <th>User</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for sms in sms_list %}
+                <tr>
+                    <td>{{ sms.service }}</td>
+                    <td>{{ sms.country }}</td>
+                    <td><code>{{ sms.phone_number }}</code></td>
+                    <td>${{ '%.4f'|format(sms.rate) }}</td>
+                    <td><small class="text-truncate-cell" title="{{ sms.message }}">{{ sms.message[:80] }}{% if sms.message|length > 80 %}...{% endif %}</small></td>
+                    <td>{{ sms.owner.user_id if sms.owner else '<span class="text-muted">Admin</span>'|safe }}</td>
+                    <td>{{ sms.received_at.strftime('%Y-%m-%d %H:%M') if sms.received_at else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-muted text-center py-4">No SMS found</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – Eden SMS{% endblock %}
+
+{% block content %}
+{# ── ANNOUNCEMENT BANNERS ── #}
+{% if announcements %}
+{% for ann in announcements %}
+<div class="alert alert-{{ ann.variant }} d-flex align-items-start gap-2 mb-3" role="alert">
+    <i class="bi bi-megaphone-fill fs-5 mt-1"></i>
+    <div>
+        <strong>{{ ann.title }}</strong>
+        <div style="white-space: pre-wrap;">{{ ann.body }}</div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<h4 class="mb-4"><i class="bi bi-speedometer2 text-eden"></i> Dashboard</h4>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-success"><i class="bi bi-phone"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ total_numbers }}</div>
+                <div class="stat-label">My Numbers</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-primary"><i class="bi bi-chat-dots"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ today_otps }}</div>
+                <div class="stat-label">Today's OTPs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-info"><i class="bi bi-chat-text"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ total_otps }}</div>
+                <div class="stat-label">Total OTPs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-eden"><i class="bi bi-currency-dollar"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">${{ '%.4f'|format(balance) }}</div>
+                <div class="stat-label">Balance</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    {# Number Access Cards #}
+    <div class="col-lg-6">
+        <h6 class="mb-2"><i class="bi bi-phone me-1"></i>My Number Access</h6>
+        {% if country_counts %}
+            {% for country, count in country_counts %}
+            <a href="{{ url_for('user.number_detail', country=country) }}" class="access-card text-decoration-none">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="access-index">Access {{ loop.index }}.</span>
+                        <strong>{{ country }}</strong>
+                    </div>
+                    <span class="badge bg-eden">{{ count }} numbers</span>
+                </div>
+            </a>
+            {% endfor %}
+        {% else %}
+            <div class="card eden-card">
+                <div class="card-body text-center text-muted py-4">
+                    <i class="bi bi-phone-flip fs-1 d-block mb-2"></i>
+                    No numbers assigned yet. Contact your admin or moderator.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    {# Recent OTPs #}
+    <div class="col-lg-6">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6><i class="bi bi-chat-dots me-1"></i>Recent OTPs</h6>
+            <a href="{{ url_for('user.my_otps') }}" class="btn btn-sm btn-outline-eden">View All</a>
+        </div>
+        <div class="card eden-card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0">
+                        <thead><tr><th>Service</th><th>Number</th><th>OTP</th><th>Time</th></tr></thead>
+                        <tbody>
+                        {% for sms in recent_otps %}
+                        <tr>
+                            <td>{{ sms.service }}</td>
+                            <td><code>{{ sms.phone_number }}</code></td>
+                            <td><code>{{ sms.otp_code }}</code></td>
+                            <td>{{ sms.received_at.strftime('%H:%M') if sms.received_at else '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-muted text-center">No OTPs yet</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

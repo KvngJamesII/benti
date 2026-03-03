@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Upload Numbers – Admin – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-cloud-upload text-eden"></i> Upload Numbers</h4>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card eden-card">
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="country" class="form-label">Country (Termination)</label>
+                        <select class="form-select" id="country" name="country" required>
+                            <option value="" disabled selected>Select a country...</option>
+                            {% for c in countries %}
+                            <option value="{{ c }}">{{ country_flags.get(c, '🏳️') }} {{ c }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Numbers File (.txt)</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".txt" required>
+                        <div class="form-text">One phone number per line. Duplicates will be skipped.</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-eden">
+                        <i class="bi bi-cloud-upload"></i> Publish
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card eden-card">
+            <div class="card-header">Upload Tips</div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li>File must be <code>.txt</code> format</li>
+                    <li>One number per line</li>
+                    <li>Numbers can include country code (e.g. 2290175xxxxx)</li>
+                    <li>Spaces, dashes and + signs are automatically stripped</li>
+                    <li>Duplicate numbers are automatically skipped</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

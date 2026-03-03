@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-speedometer2 text-eden"></i> Admin Dashboard</h4>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-primary"><i class="bi bi-people"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ total_users }}</div>
+                <div class="stat-label">Users</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-info"><i class="bi bi-shield-check"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ total_mods }}</div>
+                <div class="stat-label">Moderators</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-success"><i class="bi bi-phone"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ total_numbers }}</div>
+                <div class="stat-label">Total Numbers</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-warning"><i class="bi bi-phone-fill"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ allocated_numbers }}</div>
+                <div class="stat-label">Allocated</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-eden"><i class="bi bi-chat-dots"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ total_sms }}</div>
+                <div class="stat-label">Total SMS</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-6">
+        <div class="stat-card">
+            <div class="stat-icon bg-secondary"><i class="bi bi-chat-text"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ today_sms }}</div>
+                <div class="stat-label">Today's SMS</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-12">
+        <div class="stat-card">
+            <div class="stat-icon bg-danger"><i class="bi bi-wallet2"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">{{ pending_withdrawals }}</div>
+                <div class="stat-label">Pending Withdrawals</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card eden-card">
+            <div class="card-header"><i class="bi bi-chat-dots me-2"></i>Recent SMS</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0">
+                        <thead><tr><th>Service</th><th>Number</th><th>Country</th><th>Time</th></tr></thead>
+                        <tbody>
+                        {% for sms in recent_sms %}
+                        <tr>
+                            <td>{{ sms.service }}</td>
+                            <td><code>{{ sms.phone_number }}</code></td>
+                            <td>{{ sms.country }}</td>
+                            <td>{{ sms.received_at.strftime('%H:%M') if sms.received_at else '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-muted text-center">No SMS yet</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card eden-card">
+            <div class="card-header"><i class="bi bi-journal-text me-2"></i>Recent Activity</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0">
+                        <thead><tr><th>Action</th><th>Time</th></tr></thead>
+                        <tbody>
+                        {% for log in recent_logs %}
+                        <tr>
+                            <td><small>{{ log.action }}</small></td>
+                            <td><small>{{ log.created_at.strftime('%H:%M') if log.created_at else '-' }}</small></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="2" class="text-muted text-center">No activity</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

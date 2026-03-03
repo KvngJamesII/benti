@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}My OTPs – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-chat-dots text-eden"></i> My OTPs</h4>
+
+{# Date filter #}
+<div class="card eden-card mb-4">
+    <div class="card-body">
+        <form method="GET" class="d-flex gap-2 align-items-center flex-wrap">
+            <label class="form-label mb-0 me-2">Filter by date:</label>
+            <input type="date" class="form-control form-control-sm" name="date" value="{{ date_str }}" style="max-width: 200px;">
+            <button type="submit" class="btn btn-sm btn-eden">Filter</button>
+            <a href="{{ url_for('user.my_otps') }}" class="btn btn-sm btn-outline-secondary">Today</a>
+        </form>
+    </div>
+</div>
+
+<div class="card eden-card">
+    <div class="card-header d-flex justify-content-between">
+        <span>
+            {% if date_str %}OTPs for {{ date_str }}{% else %}Today's OTPs{% endif %}
+        </span>
+        <span class="badge bg-eden">{{ sms_list|length }} messages</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Range</th>
+                        <th>Number</th>
+                        <th>Payment</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for sms in sms_list %}
+                <tr>
+                    <td><strong>{{ sms.service }}</strong></td>
+                    <td>{{ sms.country }}</td>
+                    <td><code>{{ sms.phone_number }}</code></td>
+                    <td class="text-eden">${{ '%.4f'|format(sms.rate) }}</td>
+                    <td style="white-space: normal; word-break: break-word; min-width: 200px;">
+                        <small>{{ sms.message }}</small>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-muted text-center py-4">
+                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                    No OTPs received {% if date_str %}on {{ date_str }}{% else %}today{% endif %}
+                </td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

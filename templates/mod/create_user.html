@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Create User – Mod – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-person-plus text-eden"></i> Create User</h4>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card eden-card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="user_id" class="form-label">User ID</label>
+                        <input type="text" class="form-control" id="user_id" name="user_id"
+                               placeholder="Enter a unique User ID" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="text" class="form-control" id="password" name="password"
+                               placeholder="Enter a password" required>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-eden">
+                            <i class="bi bi-check-lg"></i> Create User
+                        </button>
+                        <a href="{{ url_for('mod.my_users') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
