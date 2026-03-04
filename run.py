@@ -46,7 +46,28 @@ def create_app():
         _seed_admin(app)
         init_default_settings()
 
+    # Start background pollers (works under both gunicorn and python run.py)
+    _start_pollers(app)
+
     return app
+
+
+_pollers_started = False
+
+def _start_pollers(app):
+    """Start SMS pollers once (gunicorn may fork multiple workers)."""
+    global _pollers_started
+    if _pollers_started:
+        return
+    _pollers_started = True
+
+    from sms_poller import SMSPoller
+    poller = SMSPoller(app)
+    poller.start()
+
+    from numberpanel_poller import NumberPanelPoller
+    np_poller = NumberPanelPoller(app)
+    np_poller.start()
 
 
 def _seed_admin(app):
@@ -66,16 +87,6 @@ def _seed_admin(app):
 # ──────────────────────────────────────────
 if __name__ == "__main__":
     app = create_app()
-
-    # Start SMS poller in background (IVAS)
-    from sms_poller import SMSPoller
-    poller = SMSPoller(app)
-    poller.start()
-
-    # Start NumberPanel poller in background
-    from numberpanel_poller import NumberPanelPoller
-    np_poller = NumberPanelPoller(app)
-    np_poller.start()
 
     print("=" * 50)
     print("  EDEN SMS SERVICES")
