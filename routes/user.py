@@ -174,10 +174,18 @@ def payment():
 @user_required
 def settings():
     if request.method == "POST":
+        method = request.form.get("payment_method", "usdt_bep20").strip()
+        if method not in ("usdt_bep20", "binance_uid"):
+            method = "usdt_bep20"
+
         wallet = request.form.get("wallet_address", "").strip()
+        binance_uid = request.form.get("binance_uid", "").strip()
+
+        current_user.payment_method = method
         current_user.wallet_address = wallet
+        current_user.binance_uid = binance_uid
         db.session.commit()
-        flash("Wallet address saved.", "success")
+        flash("Payment settings saved.", "success")
         return redirect(url_for("user.settings"))
 
     otp_rate = float(get_setting("otp_rate", "0.005"))
@@ -215,9 +223,15 @@ def withdrawal():
             flash(f"Minimum withdrawal is ${min_wd}.", "danger")
             return redirect(url_for("user.withdrawal"))
 
-        if not current_user.wallet_address:
-            flash("Please set your USDT BEP-20 wallet address in Settings first.", "danger")
-            return redirect(url_for("user.settings"))
+        # Validate payment destination
+        if current_user.payment_method == "binance_uid":
+            if not current_user.binance_uid:
+                flash("Please set your Binance UID in Settings first.", "danger")
+                return redirect(url_for("user.settings"))
+        else:
+            if not current_user.wallet_address:
+                flash("Please set your USDT BEP-20 wallet address in Settings first.", "danger")
+                return redirect(url_for("user.settings"))
 
         # Check if today is the withdrawal day
         today_name = datetime.utcnow().strftime("%A")
@@ -231,16 +245,18 @@ def withdrawal():
             flash("You already have a pending withdrawal request.", "warning")
             return redirect(url_for("user.withdrawal"))
 
+        pay_dest = current_user.binance_uid if current_user.payment_method == "binance_uid" else current_user.wallet_address
         wd = Withdrawal(
             user_id=current_user.id,
             amount=amount,
-            wallet_address=current_user.wallet_address,
+            wallet_address=pay_dest,
+            payment_method=current_user.payment_method or "usdt_bep20",
             status="pending",
         )
         db.session.add(wd)
         db.session.add(ActivityLog(
             user_id=current_user.id, action="withdrawal_request",
-            details=f"Withdrawal request: ${amount:.4f} to {current_user.wallet_address}",
+            details=f"Withdrawal request: ${amount:.4f} via {current_user.payment_method} to {pay_dest}",
         ))
         db.session.commit()
         flash(f"Withdrawal request for ${amount:.4f} submitted!", "success")

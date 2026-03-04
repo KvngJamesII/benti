@@ -15,9 +15,21 @@ def admin_required(f):
     @wraps(f)
     @login_required
     def decorated(*args, **kwargs):
-        if current_user.role != "admin":
+        if current_user.role not in ("admin", "super_admin"):
             flash("Access denied.", "danger")
             return redirect(url_for("auth.login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def super_admin_required(f):
+    """Only the primary super-admin (idledev) can access this."""
+    @wraps(f)
+    @login_required
+    def decorated(*args, **kwargs):
+        if current_user.role != "super_admin":
+            flash("Only the primary admin can do this.", "danger")
+            return redirect(url_for("admin.dashboard"))
         return f(*args, **kwargs)
     return decorated
 
@@ -98,13 +110,21 @@ def dashboard():
 @admin_required
 def users():
     role_filter = request.args.get("role", "all")
-    q = User.query.filter(User.role != "admin")
+    # Super admin sees all users including other admins; regular admin sees mods+users only
+    if current_user.role == "super_admin":
+        q = User.query.filter(User.id != current_user.id)  # hide self
+    else:
+        q = User.query.filter(User.role.notin_(["admin", "super_admin"]))
     if role_filter == "mod":
         q = q.filter_by(role="mod")
     elif role_filter == "user":
         q = q.filter_by(role="user")
+    elif role_filter == "admin":
+        q = q.filter_by(role="admin")
     all_users = q.order_by(User.created_at.desc()).all()
-    return render_template("admin/users.html", users=all_users, role_filter=role_filter)
+    return render_template("admin/users.html", users=all_users, role_filter=role_filter,
+        is_super_admin=current_user.role == "super_admin",
+    )
 
 
 @admin_bp.route("/create-account", methods=["GET", "POST"])
@@ -119,7 +139,12 @@ def create_account():
             flash("User ID and Password are required.", "danger")
             return redirect(url_for("admin.create_account"))
 
-        if role not in ("user", "mod"):
+        # Only super_admin can create admin accounts
+        if role == "admin":
+            if current_user.role != "super_admin":
+                flash("Only the primary admin can create admin accounts.", "danger")
+                return redirect(url_for("admin.create_account"))
+        elif role not in ("user", "mod"):
             flash("Invalid role.", "danger")
             return redirect(url_for("admin.create_account"))
 
@@ -138,15 +163,20 @@ def create_account():
         flash(f"{role.title()} account '{uid}' created successfully!", "success")
         return redirect(url_for("admin.users"))
 
-    return render_template("admin/create_account.html")
+    return render_template("admin/create_account.html",
+        is_super_admin=current_user.role == "super_admin",
+    )
 
 
 @admin_bp.route("/ban-user/<int:uid>")
 @admin_required
 def ban_user(uid):
     u = User.query.get_or_404(uid)
-    if u.role == "admin":
-        flash("Cannot ban admin.", "danger")
+    if u.role == "super_admin":
+        flash("Cannot ban the primary admin.", "danger")
+        return redirect(url_for("admin.users"))
+    if u.role == "admin" and current_user.role != "super_admin":
+        flash("Only the primary admin can ban other admins.", "danger")
         return redirect(url_for("admin.users"))
     u.is_banned = True
     db.session.add(ActivityLog(user_id=current_user.id, action="ban_user", details=f"Banned {u.user_id}"))
@@ -170,8 +200,11 @@ def unban_user(uid):
 @admin_required
 def delete_user(uid):
     u = User.query.get_or_404(uid)
-    if u.role == "admin":
-        flash("Cannot delete admin.", "danger")
+    if u.role == "super_admin":
+        flash("Cannot delete the primary admin.", "danger")
+        return redirect(url_for("admin.users"))
+    if u.role == "admin" and current_user.role != "super_admin":
+        flash("Only the primary admin can delete other admins.", "danger")
         return redirect(url_for("admin.users"))
     # revoke all numbers
     Number.query.filter_by(allocated_to_id=u.id).update({"allocated_to_id": None, "allocated_by_id": None, "allocated_at": None})
@@ -783,19 +816,41 @@ def activity_log():
 # ═══════════════════════════════════════════
 #  OTP FETCHER  (NumberPanel settings + test)
 # ═══════════════════════════════════════════
+def _load_api_tokens() -> list[dict]:
+    """Load API tokens from settings as a JSON list of {name, token} dicts."""
+    import json
+    raw = get_setting("np_api_tokens", "")
+    if raw:
+        try:
+            return json.loads(raw)
+        except Exception:
+            pass
+    # Fallback: migrate single token if it exists
+    single = get_setting("np_api_token", "")
+    if single:
+        return [{"name": "Default", "token": single}]
+    cfg_token = current_app.config.get("NP_API_TOKEN", "")
+    if cfg_token:
+        return [{"name": "Default", "token": cfg_token}]
+    return []
+
+
+def _save_api_tokens(tokens: list[dict]):
+    import json
+    set_setting("np_api_tokens", json.dumps(tokens))
+
+
 @admin_bp.route("/otp-fetcher", methods=["GET", "POST"])
 @admin_required
 def otp_fetcher():
     """Manage NumberPanel CR-API settings."""
     if request.method == "POST":
         np_api_url = request.form.get("np_api_url", "").strip()
-        np_api_token = request.form.get("np_api_token", "").strip()
         np_max_records = request.form.get("np_max_records", "10").strip()
         np_poll_interval = request.form.get("np_poll_interval", "10").strip()
         np_enabled = request.form.get("np_enabled", "off")
 
         set_setting("np_api_url", np_api_url)
-        set_setting("np_api_token", np_api_token)
         set_setting("np_max_records", np_max_records)
         set_setting("np_poll_interval", np_poll_interval)
         set_setting("np_enabled", "1" if np_enabled == "on" else "0")
@@ -812,17 +867,57 @@ def otp_fetcher():
     cfg = current_app.config
     return render_template("admin/otp_fetcher.html",
         np_api_url=get_setting("np_api_url", cfg.get("NP_API_URL", "")),
-        np_api_token=get_setting("np_api_token", cfg.get("NP_API_TOKEN", "")),
+        np_api_tokens=_load_api_tokens(),
         np_max_records=get_setting("np_max_records", str(cfg.get("NP_MAX_RECORDS", 10))),
         np_poll_interval=get_setting("np_poll_interval", str(cfg.get("NP_POLL_INTERVAL", 10))),
         np_enabled=get_setting("np_enabled", "1"),
     )
 
 
+@admin_bp.route("/otp-fetcher/add-token", methods=["POST"])
+@admin_required
+def otp_fetcher_add_token():
+    """Add a new API token."""
+    name = request.form.get("token_name", "").strip() or "Unnamed"
+    token = request.form.get("token_value", "").strip()
+    if not token:
+        flash("Token cannot be empty.", "danger")
+        return redirect(url_for("admin.otp_fetcher"))
+
+    tokens = _load_api_tokens()
+    tokens.append({"name": name, "token": token})
+    _save_api_tokens(tokens)
+
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="add_api_token",
+        details=f"Added API token: {name}",
+    ))
+    db.session.commit()
+    flash(f"API token '{name}' added.", "success")
+    return redirect(url_for("admin.otp_fetcher"))
+
+
+@admin_bp.route("/otp-fetcher/remove-token/<int:idx>", methods=["POST"])
+@admin_required
+def otp_fetcher_remove_token(idx):
+    """Remove an API token by index."""
+    tokens = _load_api_tokens()
+    if 0 <= idx < len(tokens):
+        removed = tokens.pop(idx)
+        _save_api_tokens(tokens)
+        db.session.add(ActivityLog(
+            user_id=current_user.id, action="remove_api_token",
+            details=f"Removed API token: {removed.get('name', '?')}",
+        ))
+        db.session.commit()
+        flash(f"Token '{removed.get('name', '?')}' removed.", "info")
+    return redirect(url_for("admin.otp_fetcher"))
+
+
 @admin_bp.route("/otp-fetcher/test", methods=["POST"])
 @admin_required
 def otp_fetcher_test():
-    """One-shot test: call the CR-API and show latest SMS."""
+    """One-shot test: call the CR-API with all tokens and show latest SMS."""
     import hashlib
     from datetime import datetime as _dt, timedelta, timezone
     import httpx
@@ -830,54 +925,66 @@ def otp_fetcher_test():
 
     cfg = current_app.config
     api_url = get_setting("np_api_url", cfg.get("NP_API_URL", ""))
-    api_token = get_setting("np_api_token", cfg.get("NP_API_TOKEN", ""))
+    tokens = _load_api_tokens()
     max_records = int(get_setting("np_max_records", str(cfg.get("NP_MAX_RECORDS", 10))))
 
     result_msg = ""
     sms_rows = []
 
-    try:
-        now = _dt.now(timezone.utc)
-        dt2 = now.strftime("%Y-%m-%d %H:%M:%S")
-        dt1 = (now - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+    if not tokens:
+        result_msg = "No API tokens configured"
+    else:
+        total_fetched = 0
+        errors = []
+        for t in tokens:
+            try:
+                now = _dt.now(timezone.utc)
+                dt2 = now.strftime("%Y-%m-%d %H:%M:%S")
+                dt1 = (now - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
 
-        with httpx.Client(timeout=30) as client:
-            resp = client.get(api_url, params={
-                "token": api_token,
-                "dt1": dt1,
-                "dt2": dt2,
-                "records": max_records,
-            })
-            resp.raise_for_status()
-            data = resp.json()
+                with httpx.Client(timeout=30) as client:
+                    resp = client.get(api_url, params={
+                        "token": t["token"],
+                        "dt1": dt1,
+                        "dt2": dt2,
+                        "records": max_records,
+                    })
+                    resp.raise_for_status()
+                    data = resp.json()
 
-        if not isinstance(data, list):
-            result_msg = f"Unexpected response type: {type(data)}"
-        else:
-            for record in data:
-                if not isinstance(record, list) or len(record) < 4:
+                if not isinstance(data, list):
+                    errors.append(f"{t['name']}: unexpected response")
                     continue
-                service = str(record[0] or "Unknown").strip()
-                phone = str(record[1] or "").strip()
-                sms_text = str(record[2] or "").strip().replace("\x00", "")
-                date_str = str(record[3] or "").strip()
-                if not phone or not sms_text:
-                    continue
-                detected = detect_service(sms_text)
-                if detected == "Unknown":
-                    detected = service
-                sms_rows.append({
-                    "date": date_str,
-                    "service": detected,
-                    "number": phone,
-                    "sms": sms_text,
-                })
-            result_msg = f"API OK – fetched {len(sms_rows)} SMS messages"
 
-    except httpx.HTTPStatusError as e:
-        result_msg = f"API HTTP error: {e.response.status_code}"
-    except Exception as e:
-        result_msg = f"Error: {e}"
+                for record in data:
+                    if not isinstance(record, list) or len(record) < 4:
+                        continue
+                    service = str(record[0] or "Unknown").strip()
+                    phone = str(record[1] or "").strip()
+                    sms_text = str(record[2] or "").strip().replace("\x00", "")
+                    date_str = str(record[3] or "").strip()
+                    if not phone or not sms_text:
+                        continue
+                    detected = detect_service(sms_text)
+                    if detected == "Unknown":
+                        detected = service
+                    sms_rows.append({
+                        "date": date_str,
+                        "service": detected,
+                        "number": phone,
+                        "sms": sms_text,
+                        "token_name": t["name"],
+                    })
+                total_fetched += len(data)
+
+            except httpx.HTTPStatusError as e:
+                errors.append(f"{t['name']}: HTTP {e.response.status_code}")
+            except Exception as e:
+                errors.append(f"{t['name']}: {e}")
+
+        result_msg = f"API OK – fetched {len(sms_rows)} SMS from {len(tokens)} token(s)"
+        if errors:
+            result_msg += f" | Errors: {'; '.join(errors)}"
 
     db.session.add(ActivityLog(
         user_id=current_user.id, action="np_test_fetch",
@@ -887,7 +994,7 @@ def otp_fetcher_test():
 
     return render_template("admin/otp_fetcher.html",
         np_api_url=get_setting("np_api_url", cfg.get("NP_API_URL", "")),
-        np_api_token=get_setting("np_api_token", cfg.get("NP_API_TOKEN", "")),
+        np_api_tokens=_load_api_tokens(),
         np_max_records=get_setting("np_max_records", str(cfg.get("NP_MAX_RECORDS", 10))),
         np_poll_interval=get_setting("np_poll_interval", str(cfg.get("NP_POLL_INTERVAL", 10))),
         np_enabled=get_setting("np_enabled", "1"),

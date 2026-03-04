@@ -12,6 +12,9 @@
 <div class="mb-3">
     <div class="btn-group btn-group-sm">
         <a href="{{ url_for('admin.users', role='all') }}" class="btn {% if role_filter == 'all' %}btn-eden{% else %}btn-outline-secondary{% endif %}">All</a>
+        {% if is_super_admin %}
+        <a href="{{ url_for('admin.users', role='admin') }}" class="btn {% if role_filter == 'admin' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Admins</a>
+        {% endif %}
         <a href="{{ url_for('admin.users', role='mod') }}" class="btn {% if role_filter == 'mod' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Mods</a>
         <a href="{{ url_for('admin.users', role='user') }}" class="btn {% if role_filter == 'user' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Users</a>
     </div>
@@ -37,7 +40,7 @@
                 <tr>
                     <td><strong>{{ u.user_id }}</strong></td>
                     <td>
-                        <span class="badge {% if u.role == 'mod' %}bg-info{% else %}bg-secondary{% endif %}">{{ u.role }}</span>
+                        <span class="badge {% if u.role == 'admin' %}bg-warning text-dark{% elif u.role == 'mod' %}bg-info{% else %}bg-secondary{% endif %}">{{ u.role }}</span>
                     </td>
                     <td>{{ u.created_by.user_id if u.created_by else '-' }}</td>
                     <td>${{ '%.4f'|format(u.balance or 0) }}</td>

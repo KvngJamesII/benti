@@ -29,25 +29,73 @@
 
     <div class="col-lg-6">
         <div class="card eden-card">
-            <div class="card-header">USDT BEP-20 Wallet Address</div>
+            <div class="card-header">Payment Settings</div>
             <div class="card-body">
                 <form method="POST">
+                    {# Payment method selector #}
                     <div class="mb-3">
-                        <label for="wallet_address" class="form-label">Wallet Address</label>
-                        <input type="text" class="form-control" id="wallet_address" name="wallet_address"
-                               value="{{ current_user.wallet_address or '' }}"
-                               placeholder="Enter your USDT BEP-20 wallet address">
-                        <div class="form-text">
-                            <i class="bi bi-exclamation-triangle text-warning me-1"></i>
-                            Ensure this is a valid BSC (BEP-20) address. Withdrawals will be sent here automatically.
+                        <label class="form-label">Payment Method</label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="payment_method"
+                                       id="pm_usdt" value="usdt_bep20"
+                                       {% if (current_user.payment_method or 'usdt_bep20') == 'usdt_bep20' %}checked{% endif %}
+                                       onchange="togglePaymentFields()">
+                                <label class="form-check-label" for="pm_usdt">
+                                    <i class="bi bi-currency-dollar text-success"></i> USDT BEP-20
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="payment_method"
+                                       id="pm_binance" value="binance_uid"
+                                       {% if current_user.payment_method == 'binance_uid' %}checked{% endif %}
+                                       onchange="togglePaymentFields()">
+                                <label class="form-check-label" for="pm_binance">
+                                    <i class="bi bi-bank text-warning"></i> Binance UID
+                                </label>
+                            </div>
                         </div>
                     </div>
+
+                    {# USDT BEP-20 field #}
+                    <div class="mb-3" id="field_usdt">
+                        <label for="wallet_address" class="form-label">USDT BEP-20 Wallet Address</label>
+                        <input type="text" class="form-control" id="wallet_address" name="wallet_address"
+                               value="{{ current_user.wallet_address or '' }}"
+                               placeholder="0x...">
+                        <div class="form-text">
+                            <i class="bi bi-exclamation-triangle text-warning me-1"></i>
+                            Ensure this is a valid BSC (BEP-20) address.
+                        </div>
+                    </div>
+
+                    {# Binance UID field #}
+                    <div class="mb-3" id="field_binance">
+                        <label for="binance_uid" class="form-label">Binance UID</label>
+                        <input type="text" class="form-control" id="binance_uid" name="binance_uid"
+                               value="{{ current_user.binance_uid or '' }}"
+                               placeholder="Enter your Binance UID">
+                        <div class="form-text">
+                            <i class="bi bi-info-circle text-info me-1"></i>
+                            Found in your Binance app under Profile &rarr; UID.
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn btn-eden">
-                        <i class="bi bi-check-lg"></i> Save Address
+                        <i class="bi bi-check-lg"></i> Save Settings
                     </button>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+function togglePaymentFields() {
+    const usdt = document.getElementById('pm_usdt').checked;
+    document.getElementById('field_usdt').style.display = usdt ? '' : 'none';
+    document.getElementById('field_binance').style.display = usdt ? 'none' : '';
+}
+togglePaymentFields();
+</script>
 {% endblock %}

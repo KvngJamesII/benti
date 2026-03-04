@@ -22,7 +22,8 @@
                         <th>#</th>
                         <th>User</th>
                         <th>Amount</th>
-                        <th>Wallet Address</th>
+                        <th>Method</th>
+                        <th>Destination</th>
                         <th>Status</th>
                         <th>Requested</th>
                         <th>Paid At</th>
@@ -35,6 +36,13 @@
                     <td>{{ w.id }}</td>
                     <td><strong>{{ w.owner.user_id if w.owner else '?' }}</strong></td>
                     <td>${{ '%.4f'|format(w.amount) }}</td>
+                    <td>
+                        {% if w.payment_method == 'binance_uid' %}
+                            <span class="badge bg-warning text-dark">Binance</span>
+                        {% else %}
+                            <span class="badge bg-success">USDT</span>
+                        {% endif %}
+                    </td>
                     <td><code class="small">{{ w.wallet_address[:20] }}{% if w.wallet_address|length > 20 %}...{% endif %}</code></td>
                     <td>
                         {% if w.status == 'pending' %}

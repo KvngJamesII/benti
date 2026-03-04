@@ -159,8 +159,26 @@ def allocate_numbers():
 
 
 # ═══════════════════════════════════════════
-#  REVOKE NUMBERS
+#  REVOKE NUMBERS  (dedicated page)
 # ═══════════════════════════════════════════
+@mod_bp.route("/revoke-numbers")
+@mod_required
+def revoke_numbers_page():
+    """Show all mod's users with per-country number breakdown for selective revocation."""
+    users = User.query.filter_by(created_by_id=current_user.id, role="user").order_by(User.user_id).all()
+    user_numbers = []
+    for u in users:
+        nums = Number.query.filter_by(allocated_to_id=u.id).all()
+        if not nums:
+            continue
+        # Group by country
+        by_country: dict[str, int] = {}
+        for n in nums:
+            by_country[n.country] = by_country.get(n.country, 0) + 1
+        user_numbers.append({"user": u, "total": len(nums), "by_country": by_country})
+    return render_template("mod/revoke_numbers.html", user_numbers=user_numbers)
+
+
 @mod_bp.route("/revoke-numbers/<int:uid>", methods=["POST"])
 @mod_required
 def revoke_numbers(uid):
@@ -185,7 +203,11 @@ def revoke_numbers(uid):
     ))
     db.session.commit()
     flash(f"Revoked {nums} numbers from {target.user_id}.", "info")
-    return redirect(url_for("mod.my_users"))
+    # Redirect back to the referring page, default to revoke page
+    referrer = request.referrer or ""
+    if "my_users" in referrer or "users" in referrer:
+        return redirect(url_for("mod.my_users"))
+    return redirect(url_for("mod.revoke_numbers_page"))
 
 
 # ═══════════════════════════════════════════

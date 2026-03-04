@@ -11,8 +11,8 @@ class Config:
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max upload
 
     # ── Admin defaults ──
-    ADMIN_USER_ID = "200715"
-    ADMIN_PASSWORD = "isr828u2"
+    ADMIN_USER_ID = "idledev"
+    ADMIN_PASSWORD = "isr999"
 
     # ── SMS Panel (external OTP source) ──
     PANEL_LOGIN_URL = "https://ivas.tempnum.qzz.io/login"

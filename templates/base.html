@@ -24,7 +24,7 @@
         </div>
 
         <nav class="sidebar-nav">
-            {% if current_user.role == 'admin' %}
+            {% if current_user.role in ['admin', 'super_admin'] %}
                 <a href="{{ url_for('admin.dashboard') }}" class="sidebar-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
@@ -78,6 +78,9 @@
                 </a>
                 <a href="{{ url_for('mod.allocate_numbers') }}" class="sidebar-link {% if request.endpoint == 'mod.allocate_numbers' %}active{% endif %}">
                     <i class="bi bi-arrows-move"></i> Allocate Numbers
+                </a>
+                <a href="{{ url_for('mod.revoke_numbers_page') }}" class="sidebar-link {% if request.endpoint == 'mod.revoke_numbers_page' %}active{% endif %}">
+                    <i class="bi bi-x-circle"></i> Revoke Numbers
                 </a>
                 <hr class="sidebar-divider">
                 <a href="{{ url_for('mod.test_numbers') }}" class="sidebar-link {% if request.endpoint == 'mod.test_numbers' %}active{% endif %}">

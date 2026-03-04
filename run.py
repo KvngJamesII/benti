@@ -43,6 +43,7 @@ def create_app():
     # Create tables + seed admin
     with app.app_context():
         db.create_all()
+        _migrate_columns()
         _seed_admin(app)
         init_default_settings()
 
@@ -53,6 +54,30 @@ def create_app():
 
 
 _pollers_started = False
+
+
+def _migrate_columns():
+    """Add new columns to existing SQLite tables (no-op if they already exist)."""
+    import sqlite3
+    db_path = db.engine.url.database
+    if not db_path:
+        return
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    migrations = [
+        ("users", "binance_uid", "TEXT"),
+        ("users", "payment_method", "TEXT DEFAULT 'usdt_bep20'"),
+        ("withdrawals", "payment_method", "TEXT DEFAULT 'usdt_bep20'"),
+    ]
+    for table, col, col_type in migrations:
+        try:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+            print(f"[MIGRATE] Added {table}.{col}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+    conn.commit()
+    conn.close()
+
 
 def _start_pollers(app):
     """Start SMS pollers once (gunicorn may fork multiple workers)."""
@@ -71,17 +96,44 @@ def _start_pollers(app):
 
 
 def _seed_admin(app):
-    """Create the admin user on first run."""
-    admin = User.query.filter_by(user_id=app.config["ADMIN_USER_ID"]).first()
-    if not admin:
-        admin = User(
-            user_id=app.config["ADMIN_USER_ID"],
-            role="admin",
-        )
-        admin.set_password(app.config["ADMIN_PASSWORD"])
-        db.session.add(admin)
+    """Create or migrate the primary super-admin account."""
+    target_uid = app.config["ADMIN_USER_ID"]  # "idledev"
+    target_pwd = app.config["ADMIN_PASSWORD"]  # "isr999"
+
+    # Check if the target admin already exists
+    admin = User.query.filter_by(user_id=target_uid).first()
+    if admin:
+        # Ensure it's super_admin role
+        if admin.role != "super_admin":
+            admin.role = "super_admin"
+            db.session.commit()
+            print(f"[SEED] Promoted {target_uid} to super_admin")
+        return
+
+    # Migrate old admin (200715) to new ID if it exists
+    old_admin = User.query.filter_by(user_id="200715", role="admin").first()
+    if old_admin:
+        old_admin.user_id = target_uid
+        old_admin.role = "super_admin"
+        old_admin.set_password(target_pwd)
         db.session.commit()
-        print(f"[SEED] Admin account created: {app.config['ADMIN_USER_ID']}")
+        print(f"[SEED] Migrated admin 200715 -> {target_uid} (super_admin)")
+        return
+
+    # Also check if any super_admin already exists
+    existing_super = User.query.filter_by(role="super_admin").first()
+    if existing_super:
+        return
+
+    # Fresh install – create super_admin
+    admin = User(
+        user_id=target_uid,
+        role="super_admin",
+    )
+    admin.set_password(target_pwd)
+    db.session.add(admin)
+    db.session.commit()
+    print(f"[SEED] Super-admin account created: {target_uid}")
 
 
 # ──────────────────────────────────────────

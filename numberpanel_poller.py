@@ -175,11 +175,24 @@ class NumberPanelPoller:
 
         cfg = self.app.config
         api_url = get_setting("np_api_url", cfg.get("NP_API_URL", ""))
-        api_token = get_setting("np_api_token", cfg.get("NP_API_TOKEN", ""))
         max_records = int(get_setting("np_max_records", str(cfg.get("NP_MAX_RECORDS", 10))))
 
-        if not api_url or not api_token:
-            print("[NumberPanel] API URL or token not configured")
+        # Load all API tokens (JSON list)
+        import json as _json
+        tokens: list[dict] = []
+        raw = get_setting("np_api_tokens", "")
+        if raw:
+            try:
+                tokens = _json.loads(raw)
+            except Exception:
+                pass
+        if not tokens:
+            # Fallback: single token from settings or config
+            single = get_setting("np_api_token", cfg.get("NP_API_TOKEN", ""))
+            if single:
+                tokens = [{"name": "Default", "token": single}]
+
+        if not api_url or not tokens:
             return []
 
         # Build date range (last 2 hours)
@@ -187,74 +200,75 @@ class NumberPanelPoller:
         dt2 = now.strftime("%Y-%m-%d %H:%M:%S")
         dt1 = (now - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
 
-        params = {
-            "token": api_token,
-            "dt1": dt1,
-            "dt2": dt2,
-            "records": max_records,
-        }
-
         messages: list[dict] = []
+        seen_ids: set[str] = set()
 
-        try:
-            with httpx.Client(timeout=30) as client:
-                resp = client.get(api_url, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+        for t in tokens:
+            try:
+                with httpx.Client(timeout=30) as client:
+                    resp = client.get(api_url, params={
+                        "token": t["token"],
+                        "dt1": dt1,
+                        "dt2": dt2,
+                        "records": max_records,
+                    })
+                    resp.raise_for_status()
+                    data = resp.json()
 
-            if not isinstance(data, list):
-                print(f"[NumberPanel] Unexpected API response type: {type(data)}")
-                return []
-
-            for record in data:
-                if not isinstance(record, list) or len(record) < 4:
+                if not isinstance(data, list):
                     continue
 
-                service = str(record[0] or "Unknown").strip()
-                phone = str(record[1] or "").strip()
-                sms_text = str(record[2] or "").strip().replace("\x00", "")
-                date_str = str(record[3] or "").strip()
+                for record in data:
+                    if not isinstance(record, list) or len(record) < 4:
+                        continue
 
-                if not phone or not sms_text:
-                    continue
+                    service = str(record[0] or "Unknown").strip()
+                    phone = str(record[1] or "").strip()
+                    sms_text = str(record[2] or "").strip().replace("\x00", "")
+                    date_str = str(record[3] or "").strip()
 
-                # Create unique ID from message data (same hash as api.js)
-                msg_data = f"{date_str}_{phone}_{service}_{sms_text}"
-                ext_id = "np-" + hashlib.md5(msg_data.encode()).hexdigest()
+                    if not phone or not sms_text:
+                        continue
 
-                # Try to detect service from SMS content (more reliable)
-                detected = detect_service(sms_text)
-                if detected == "Unknown":
-                    detected = service  # fall back to API-provided service name
+                    # Create unique ID from message data (same hash as api.js)
+                    msg_data = f"{date_str}_{phone}_{service}_{sms_text}"
+                    ext_id = "np-" + hashlib.md5(msg_data.encode()).hexdigest()
 
-                # Extract country from phone prefix (basic)
-                country = "Unknown"
-                if phone.startswith("234"):
-                    country = "Nigeria"
-                elif phone.startswith("1"):
-                    country = "USA"
-                elif phone.startswith("44"):
-                    country = "UK"
-                elif phone.startswith("91"):
-                    country = "India"
+                    if ext_id in seen_ids:
+                        continue
+                    seen_ids.add(ext_id)
 
-                messages.append({
-                    "id": ext_id,
-                    "number": phone,
-                    "country": country,
-                    "sms": sms_text,
-                    "service": detected,
-                    "date": date_str,
-                })
+                    # Try to detect service from SMS content (more reliable)
+                    detected = detect_service(sms_text)
+                    if detected == "Unknown":
+                        detected = service
 
-            if messages:
-                print(f"[NumberPanel] Fetched {len(messages)} SMS from API")
+                    # Extract country from phone prefix (basic)
+                    country = "Unknown"
+                    if phone.startswith("234"):
+                        country = "Nigeria"
+                    elif phone.startswith("1"):
+                        country = "USA"
+                    elif phone.startswith("44"):
+                        country = "UK"
+                    elif phone.startswith("91"):
+                        country = "India"
 
-            return messages
+                    messages.append({
+                        "id": ext_id,
+                        "number": phone,
+                        "country": country,
+                        "sms": sms_text,
+                        "service": detected,
+                        "date": date_str,
+                    })
 
-        except httpx.HTTPStatusError as e:
-            print(f"[NumberPanel] API HTTP error: {e.response.status_code}")
-            return []
-        except Exception as e:
-            print(f"[NumberPanel] API error: {e}")
-            return []
+            except httpx.HTTPStatusError as e:
+                print(f"[NumberPanel] API HTTP error ({t.get('name', '?')}): {e.response.status_code}")
+            except Exception as e:
+                print(f"[NumberPanel] API error ({t.get('name', '?')}): {e}")
+
+        if messages:
+            print(f"[NumberPanel] Fetched {len(messages)} SMS from {len(tokens)} token(s)")
+
+        return messages

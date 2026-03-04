@@ -8,7 +8,8 @@
 <div class="alert alert-info border-0">
     <i class="bi bi-info-circle me-2"></i>
     <strong>Min Withdrawal is ${{ min_withdrawal }}</strong> – Withdrawals are available on <strong>{{ withdrawal_day }}s</strong> only.
-    Payment will be automatically sent to your USDT BEP-20 wallet address.
+    Payment will be sent to your
+    {% if current_user.payment_method == 'binance_uid' %}Binance UID{% else %}USDT BEP-20 wallet{% endif %}.
 </div>
 
 <div class="row g-3 mb-4">
@@ -32,19 +33,25 @@
                                placeholder="Min ${{ min_withdrawal }}" required>
                     </div>
 
-                    {% if not current_user.wallet_address %}
+                    {% set has_payment = (current_user.payment_method == 'binance_uid' and current_user.binance_uid) or (current_user.payment_method != 'binance_uid' and current_user.wallet_address) %}
+
+                    {% if not has_payment %}
                     <div class="alert alert-warning py-2 mb-3">
                         <small><i class="bi bi-exclamation-triangle me-1"></i>
-                        Set your wallet address in <a href="{{ url_for('user.settings') }}">Settings</a> first.</small>
+                        Set your payment details in <a href="{{ url_for('user.settings') }}">Settings</a> first.</small>
                     </div>
                     {% else %}
                     <p class="small text-muted mb-3">
+                        {% if current_user.payment_method == 'binance_uid' %}
+                        <i class="bi bi-bank me-1"></i>To: Binance UID <code>{{ current_user.binance_uid }}</code>
+                        {% else %}
                         <i class="bi bi-wallet me-1"></i>To: <code>{{ current_user.wallet_address[:20] }}...{{ current_user.wallet_address[-6:] }}</code>
+                        {% endif %}
                     </p>
                     {% endif %}
 
                     <button type="submit" class="btn btn-eden w-100"
-                            {% if balance < min_withdrawal or not current_user.wallet_address %}disabled{% endif %}>
+                            {% if balance < min_withdrawal or not has_payment %}disabled{% endif %}>
                         <i class="bi bi-send me-1"></i> Request Withdrawal
                     </button>
 
@@ -69,7 +76,8 @@
                     <tr>
                         <th>#</th>
                         <th>Amount</th>
-                        <th>Wallet</th>
+                        <th>Method</th>
+                        <th>Destination</th>
                         <th>Status</th>
                         <th>Requested</th>
                         <th>Paid</th>
@@ -80,7 +88,14 @@
                 <tr>
                     <td>{{ w.id }}</td>
                     <td>${{ '%.4f'|format(w.amount) }}</td>
-                    <td><code class="small">{{ w.wallet_address[:16] }}...</code></td>
+                    <td>
+                        {% if w.payment_method == 'binance_uid' %}
+                            <span class="badge bg-warning text-dark">Binance</span>
+                        {% else %}
+                            <span class="badge bg-success">USDT</span>
+                        {% endif %}
+                    </td>
+                    <td><code class="small">{{ w.wallet_address[:16] }}{% if w.wallet_address|length > 16 %}...{% endif %}</code></td>
                     <td>
                         {% if w.status == 'pending' %}<span class="badge bg-warning">Pending</span>
                         {% elif w.status == 'paid' %}<span class="badge bg-success">Paid</span>
@@ -90,7 +105,7 @@
                     <td>{{ w.paid_at.strftime('%Y-%m-%d %H:%M') if w.paid_at else '-' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="6" class="text-muted text-center py-4">No withdrawals yet</td></tr>
+                <tr><td colspan="7" class="text-muted text-center py-4">No withdrawals yet</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

@@ -20,6 +20,8 @@ class User(UserMixin, db.Model):
     is_banned = db.Column(db.Boolean, default=False)
     balance = db.Column(db.Float, default=0.0)
     wallet_address = db.Column(db.String(256), nullable=True)
+    binance_uid = db.Column(db.String(100), nullable=True)
+    payment_method = db.Column(db.String(20), default="usdt_bep20")  # usdt_bep20 | binance_uid
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # relationships
@@ -36,7 +38,11 @@ class User(UserMixin, db.Model):
 
     @property
     def is_admin(self):
-        return self.role == "admin"
+        return self.role in ("admin", "super_admin")
+
+    @property
+    def is_super_admin(self):
+        return self.role == "super_admin"
 
     @property
     def is_mod(self):
@@ -110,6 +116,7 @@ class Withdrawal(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     wallet_address = db.Column(db.String(256))
+    payment_method = db.Column(db.String(20), default="usdt_bep20")
     status = db.Column(db.String(20), default="pending")  # pending | paid | rejected
     requested_at = db.Column(db.DateTime, default=datetime.utcnow)
     paid_at = db.Column(db.DateTime, nullable=True)

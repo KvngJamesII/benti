@@ -41,7 +41,7 @@ def logout():
 
 
 def _redirect_by_role(user):
-    if user.role == "admin":
+    if user.role in ("admin", "super_admin"):
         return redirect(url_for("admin.dashboard"))
     elif user.role == "mod":
         return redirect(url_for("mod.dashboard"))
