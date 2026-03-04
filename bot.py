@@ -1199,11 +1199,9 @@ async def mod_panel_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ═══════════════════════════════════════════════════
 async def show_user_welcome(update: Update, ctx: ContextTypes.DEFAULT_TYPE, name: str):
     await update.message.reply_text(
-        f"{E['wave']} <b>Welcome to Eden SMS Support!</b>\n\n"
+        f"{E['wave']} <b>Welcome at Eden SMS</b>\n\n"
         f"Hi <b>{name}</b>! {E['chat']}\n\n"
-        f"Type your message below and our support team will respond.\n"
-        f"We're here to help with account creation, number issues, and more!\n\n"
-        f"{E['pin']} <i>Your messages are private and only seen by your assigned support agent.</i>",
+        f"Type your message below and our support team will respond shortly after",
         parse_mode=ParseMode.HTML,
     )
 
