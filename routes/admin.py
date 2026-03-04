@@ -786,38 +786,35 @@ def activity_log():
 @admin_bp.route("/otp-fetcher", methods=["GET", "POST"])
 @admin_required
 def otp_fetcher():
-    """Manage NumberPanel login credentials and test SMS fetching."""
+    """Manage NumberPanel CR-API settings."""
     if request.method == "POST":
-        np_username = request.form.get("np_username", "").strip()
-        np_password = request.form.get("np_password", "").strip()
-        np_login_url = request.form.get("np_login_url", "").strip()
-        np_sms_url = request.form.get("np_sms_url", "").strip()
-        np_poll_interval = request.form.get("np_poll_interval", "30").strip()
+        np_api_url = request.form.get("np_api_url", "").strip()
+        np_api_token = request.form.get("np_api_token", "").strip()
+        np_max_records = request.form.get("np_max_records", "10").strip()
+        np_poll_interval = request.form.get("np_poll_interval", "10").strip()
         np_enabled = request.form.get("np_enabled", "off")
 
-        set_setting("np_username", np_username)
-        set_setting("np_password", np_password)
-        set_setting("np_login_url", np_login_url)
-        set_setting("np_sms_url", np_sms_url)
+        set_setting("np_api_url", np_api_url)
+        set_setting("np_api_token", np_api_token)
+        set_setting("np_max_records", np_max_records)
         set_setting("np_poll_interval", np_poll_interval)
         set_setting("np_enabled", "1" if np_enabled == "on" else "0")
 
         db.session.add(ActivityLog(
             user_id=current_user.id, action="update_np_settings",
-            details=f"NumberPanel: user={np_username}, login={np_login_url}, poll={np_poll_interval}s",
+            details=f"NumberPanel API: url={np_api_url}, records={np_max_records}, poll={np_poll_interval}s",
         ))
         db.session.commit()
-        flash("NumberPanel settings updated.", "success")
+        flash("NumberPanel API settings updated.", "success")
         return redirect(url_for("admin.otp_fetcher"))
 
     # GET: load current values from DB, fall back to config
     cfg = current_app.config
     return render_template("admin/otp_fetcher.html",
-        np_username=get_setting("np_username", cfg.get("NP_USERNAME", "")),
-        np_password=get_setting("np_password", cfg.get("NP_PASSWORD", "")),
-        np_login_url=get_setting("np_login_url", cfg.get("NP_LOGIN_URL", "")),
-        np_sms_url=get_setting("np_sms_url", cfg.get("NP_SMS_URL", "")),
-        np_poll_interval=get_setting("np_poll_interval", str(cfg.get("NP_POLL_INTERVAL", 30))),
+        np_api_url=get_setting("np_api_url", cfg.get("NP_API_URL", "")),
+        np_api_token=get_setting("np_api_token", cfg.get("NP_API_TOKEN", "")),
+        np_max_records=get_setting("np_max_records", str(cfg.get("NP_MAX_RECORDS", 10))),
+        np_poll_interval=get_setting("np_poll_interval", str(cfg.get("NP_POLL_INTERVAL", 10))),
         np_enabled=get_setting("np_enabled", "1"),
     )
 
@@ -825,129 +822,62 @@ def otp_fetcher():
 @admin_bp.route("/otp-fetcher/test", methods=["POST"])
 @admin_required
 def otp_fetcher_test():
-    """One-shot test: login to NumberPanel via headless browser and fetch latest SMS."""
-    import re as _re
-    from playwright.sync_api import sync_playwright
-    from numberpanel_poller import solve_math_captcha, _strip_html
+    """One-shot test: call the CR-API and show latest SMS."""
+    import hashlib
+    from datetime import datetime as _dt, timedelta, timezone
+    import httpx
+    from numberpanel_poller import detect_service
 
     cfg = current_app.config
-    login_url = get_setting("np_login_url", cfg.get("NP_LOGIN_URL", ""))
-    sms_url = get_setting("np_sms_url", cfg.get("NP_SMS_URL", ""))
-    username = get_setting("np_username", cfg.get("NP_USERNAME", ""))
-    password = get_setting("np_password", cfg.get("NP_PASSWORD", ""))
+    api_url = get_setting("np_api_url", cfg.get("NP_API_URL", ""))
+    api_token = get_setting("np_api_token", cfg.get("NP_API_TOKEN", ""))
+    max_records = int(get_setting("np_max_records", str(cfg.get("NP_MAX_RECORDS", 10))))
 
     result_msg = ""
     sms_rows = []
 
-    pw = None
-    browser = None
     try:
-        pw = sync_playwright().start()
-        browser = pw.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-        )
-        page = browser.new_page()
+        now = _dt.now(timezone.utc)
+        dt2 = now.strftime("%Y-%m-%d %H:%M:%S")
+        dt1 = (now - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
 
-        for attempt in range(5):
-            try:
-                page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
-                html = page.content()
-                captcha_answer = solve_math_captcha(html)
-                if not captcha_answer:
-                    result_msg = f"Attempt {attempt+1}: Could not solve captcha"
+        with httpx.Client(timeout=30) as client:
+            resp = client.get(api_url, params={
+                "token": api_token,
+                "dt1": dt1,
+                "dt2": dt2,
+                "records": max_records,
+            })
+            resp.raise_for_status()
+            data = resp.json()
+
+        if not isinstance(data, list):
+            result_msg = f"Unexpected response type: {type(data)}"
+        else:
+            for record in data:
+                if not isinstance(record, list) or len(record) < 4:
                     continue
-
-                page.evaluate("document.querySelector('input[name=\"username\"]').value = ''")
-                page.type('input[name="username"]', username, delay=50)
-                page.evaluate("document.querySelector('input[name=\"password\"]').value = ''")
-                page.type('input[name="password"]', password, delay=50)
-                page.evaluate("document.querySelector('input[name=\"capt\"]').value = ''")
-                page.type('input[name="capt"]', str(captcha_answer), delay=50)
-                page.evaluate("document.querySelector('form').submit()")
-                import time as _time; _time.sleep(10)
-
-                # Check login by page content (URL may not update)
-                body_text = page.inner_text("body").lower()
-                if "welcome back" not in body_text and "dashboard" not in body_text and "sms module" not in body_text:
-                    result_msg = f"Attempt {attempt+1}: Login rejected"
-                    import time; time.sleep(1)
+                service = str(record[0] or "Unknown").strip()
+                phone = str(record[1] or "").strip()
+                sms_text = str(record[2] or "").strip().replace("\x00", "")
+                date_str = str(record[3] or "").strip()
+                if not phone or not sms_text:
                     continue
+                detected = detect_service(sms_text)
+                if detected == "Unknown":
+                    detected = service
+                sms_rows.append({
+                    "date": date_str,
+                    "service": detected,
+                    "number": phone,
+                    "sms": sms_text,
+                })
+            result_msg = f"API OK – fetched {len(sms_rows)} SMS messages"
 
-                # Logged in – intercept AJAX on SMS page
-                ajax_data = {}
-
-                def handle_response(response):
-                    try:
-                        if "data_smscdr" in response.url or "sesskey" in response.url:
-                            if response.status == 200:
-                                try:
-                                    ajax_data["json"] = response.json()
-                                except Exception:
-                                    pass
-                    except Exception:
-                        pass
-
-                page.on("response", handle_response)
-                page.goto(sms_url, wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(5000)
-                page.remove_listener("response", handle_response)
-
-                rows = []
-                if "json" in ajax_data:
-                    rows = ajax_data["json"].get("aaData") or ajax_data["json"].get("data") or []
-                else:
-                    # Fallback: extract sAjaxSource and fetch via browser
-                    html2 = page.content()
-                    match = _re.search(r'"sAjaxSource"\s*:\s*"([^"]+)"', html2)
-                    if match:
-                        ajax_path = match.group(1)
-                        base = sms_url.rsplit("/", 1)[0]
-                        ajax_url = f"{base}/{ajax_path}"
-                        resp = page.evaluate(f"""
-                            async () => {{
-                                const r = await fetch("{ajax_url}", {{
-                                    headers: {{"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}}
-                                }});
-                                return await r.json();
-                            }}
-                        """)
-                        rows = resp.get("aaData") or resp.get("data") or []
-
-                for row in rows:
-                    if not isinstance(row, list) or len(row) < 6:
-                        continue
-                    date_s = _strip_html(str(row[0])).strip()
-                    if "," in date_s or "NAN" in date_s.upper() or "%" in date_s:
-                        continue
-                    sms_rows.append({
-                        "date": date_s,
-                        "country": _strip_html(str(row[1])).strip(),
-                        "number": _strip_html(str(row[2])).strip(),
-                        "cli": _strip_html(str(row[3])).strip(),
-                        "sms": _strip_html(str(row[5])).strip(),
-                    })
-
-                result_msg = f"Login OK – fetched {len(sms_rows)} SMS messages"
-                break
-
-            except Exception as e:
-                result_msg = f"Attempt {attempt+1}: {e}"
-                import time; time.sleep(1)
-
+    except httpx.HTTPStatusError as e:
+        result_msg = f"API HTTP error: {e.response.status_code}"
     except Exception as e:
-        result_msg = f"Browser error: {e}"
-    finally:
-        try:
-            if browser:
-                browser.close()
-        except Exception:
-            pass
-        try:
-            if pw:
-                pw.stop()
-        except Exception:
-            pass
+        result_msg = f"Error: {e}"
 
     db.session.add(ActivityLog(
         user_id=current_user.id, action="np_test_fetch",
@@ -956,12 +886,12 @@ def otp_fetcher_test():
     db.session.commit()
 
     return render_template("admin/otp_fetcher.html",
-        np_username=get_setting("np_username", cfg.get("NP_USERNAME", "")),
-        np_password=get_setting("np_password", cfg.get("NP_PASSWORD", "")),
-        np_login_url=get_setting("np_login_url", cfg.get("NP_LOGIN_URL", "")),
-        np_sms_url=get_setting("np_sms_url", cfg.get("NP_SMS_URL", "")),
-        np_poll_interval=get_setting("np_poll_interval", str(cfg.get("NP_POLL_INTERVAL", 30))),
+        np_api_url=get_setting("np_api_url", cfg.get("NP_API_URL", "")),
+        np_api_token=get_setting("np_api_token", cfg.get("NP_API_TOKEN", "")),
+        np_max_records=get_setting("np_max_records", str(cfg.get("NP_MAX_RECORDS", 10))),
+        np_poll_interval=get_setting("np_poll_interval", str(cfg.get("NP_POLL_INTERVAL", 10))),
         np_enabled=get_setting("np_enabled", "1"),
         test_result=result_msg,
         test_sms=sms_rows,
     )
+
