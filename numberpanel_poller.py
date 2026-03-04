@@ -252,7 +252,7 @@ class NumberPanelPoller:
 
                 # Navigate to login
                 print(f"[NumberPanel] Login attempt {attempt + 1} – navigating to {login_url}")
-                self._page.goto(login_url, wait_until="networkidle", timeout=30000)
+                self._page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
 
                 # Solve captcha from page HTML
                 html = self._page.content()
@@ -269,9 +269,9 @@ class NumberPanelPoller:
                 self._page.fill('input[name="password"]', password)
                 self._page.fill('input[name="capt"]', captcha_answer)
 
-                # Submit via Enter and wait for server response
-                self._page.keyboard.press("Enter")
-                time.sleep(8)
+                # Submit the form via JS (most reliable across environments)
+                self._page.evaluate("document.querySelector('form').submit()")
+                time.sleep(10)
 
                 # Check if we're still on the login page
                 current_url = self._page.url.lower()
@@ -332,7 +332,7 @@ class NumberPanelPoller:
             self._page.on("response", handle_response)
 
             # Navigate to SMS reports page
-            self._page.goto(sms_url, wait_until="networkidle", timeout=30000)
+            self._page.goto(sms_url, wait_until="domcontentloaded", timeout=60000)
 
             # Check if session expired (redirected to login)
             if "/login" in self._page.url.lower().split("?")[0]:
@@ -340,8 +340,8 @@ class NumberPanelPoller:
                 self._logged_in = False
                 return []
 
-            # Wait a moment for AJAX to complete
-            self._page.wait_for_timeout(3000)
+            # Wait for AJAX to complete
+            self._page.wait_for_timeout(5000)
 
             # Remove the response listener
             self._page.remove_listener("response", handle_response)

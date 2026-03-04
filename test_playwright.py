@@ -15,7 +15,7 @@ page = browser.new_page()
 logged_in = False
 for attempt in range(5):
     print(f"--- Attempt {attempt+1} ---")
-    page.goto(login_url, wait_until="networkidle", timeout=30000)
+    page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
     html = page.content()
     captcha = solve_math_captcha(html)
     if not captcha:
@@ -26,13 +26,9 @@ for attempt in range(5):
     page.fill('input[name="password"]', password)
     page.fill('input[name="capt"]', captcha)
 
-    # Check form action
-    form_action = page.eval_on_selector("form", "el => el.action")
-    print(f"  Form action: {form_action}")
-
-    # Submit via Enter key and wait
-    page.keyboard.press("Enter")
-    time.sleep(8)  # give plenty of time
+    # Submit form via JS (more reliable than Enter key)
+    page.evaluate("document.querySelector('form').submit()")
+    time.sleep(10)  # let server process and redirect
 
     current_url = page.url.lower()
     print(f"  Current URL: {page.url}")
@@ -80,8 +76,8 @@ def on_resp(response):
 
 page.on("response", on_resp)
 print(f"\nNavigating to SMS reports: {sms_url}")
-page.goto(sms_url, wait_until="networkidle", timeout=30000)
-page.wait_for_timeout(3000)
+page.goto(sms_url, wait_until="domcontentloaded", timeout=60000)
+page.wait_for_timeout(5000)
 page.remove_listener("response", on_resp)
 
 rows = []

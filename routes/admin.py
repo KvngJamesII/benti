@@ -851,7 +851,7 @@ def otp_fetcher_test():
 
         for attempt in range(5):
             try:
-                page.goto(login_url, wait_until="networkidle", timeout=30000)
+                page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
                 html = page.content()
                 captcha_answer = solve_math_captcha(html)
                 if not captcha_answer:
@@ -861,8 +861,8 @@ def otp_fetcher_test():
                 page.fill('input[name="username"]', username)
                 page.fill('input[name="password"]', password)
                 page.fill('input[name="capt"]', captcha_answer)
-                page.keyboard.press("Enter")
-                import time as _time; _time.sleep(8)
+                page.evaluate("document.querySelector('form').submit()")
+                import time as _time; _time.sleep(10)
 
                 if "/login" in page.url.lower().split("?")[0]:
                     result_msg = f"Attempt {attempt+1}: Login rejected"
@@ -884,8 +884,8 @@ def otp_fetcher_test():
                         pass
 
                 page.on("response", handle_response)
-                page.goto(sms_url, wait_until="networkidle", timeout=30000)
-                page.wait_for_timeout(3000)
+                page.goto(sms_url, wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(5000)
                 page.remove_listener("response", handle_response)
 
                 rows = []
