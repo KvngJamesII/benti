@@ -213,6 +213,53 @@ class TestSMS(db.Model):
 
 
 # ═══════════════════════════════════════════
+#  BOT MOD  (Telegram IDs linked to site mods)
+# ═══════════════════════════════════════════
+class BotMod(db.Model):
+    __tablename__ = "bot_mods"
+
+    id = db.Column(db.Integer, primary_key=True)
+    telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)
+    site_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    site_user = db.relationship("User", foreign_keys=[site_user_id])
+
+
+# ═══════════════════════════════════════════
+#  SUPPORT TICKET  (maps Telegram user → assigned staff)
+# ═══════════════════════════════════════════
+class SupportTicket(db.Model):
+    __tablename__ = "support_tickets"
+
+    id = db.Column(db.Integer, primary_key=True)
+    telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)  # the customer
+    telegram_name = db.Column(db.String(256), nullable=True)
+    assigned_to = db.Column(db.BigInteger, nullable=True)  # staff telegram_id
+    site_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)  # linked site account
+    is_open = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    site_user = db.relationship("User", foreign_keys=[site_user_id])
+
+
+# ═══════════════════════════════════════════
+#  SUPPORT MESSAGE
+# ═══════════════════════════════════════════
+class SupportMessage(db.Model):
+    __tablename__ = "support_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey("support_tickets.id"), nullable=False)
+    sender_telegram_id = db.Column(db.BigInteger, nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    is_from_staff = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    ticket = db.relationship("SupportTicket", backref="messages")
+
+
+# ═══════════════════════════════════════════
 #  HELPERS
 # ═══════════════════════════════════════════
 def get_setting(key, default=None):
