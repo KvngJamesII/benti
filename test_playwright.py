@@ -1,4 +1,4 @@
-"""Quick test of the Playwright-based NumberPanel poller."""
+"""Quick test of the Playwright-based NumberPanel poller – heavy debug."""
 import re, time
 from playwright.sync_api import sync_playwright
 from numberpanel_poller import solve_math_captcha, _strip_html
@@ -14,43 +14,72 @@ page = browser.new_page()
 
 logged_in = False
 for attempt in range(5):
+    print(f"\n{'='*50}")
     print(f"--- Attempt {attempt+1} ---")
+
+    # 1. Navigate to login page
     page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
+    time.sleep(2)
     html = page.content()
+    print(f"  Page URL after goto: {page.url}")
+
+    # 2. Dump form HTML for debug
+    form_html = page.evaluate("document.querySelector('form') ? document.querySelector('form').outerHTML : 'NO FORM FOUND'")
+    print(f"  Form HTML (first 500 chars):\n{form_html[:500]}")
+
+    # 3. Solve captcha
     captcha = solve_math_captcha(html)
     if not captcha:
-        print("  No captcha found")
+        print("  No captcha found in HTML!")
+        # Try to find the label anyway
+        labels = page.query_selector_all("label")
+        for lbl in labels:
+            print(f"    <label>: {lbl.inner_text()}")
         continue
     print(f"  Captcha answer: {captcha}")
-    page.fill('input[name="username"]', username)
-    page.fill('input[name="password"]', password)
-    page.fill('input[name="capt"]', captcha)
 
-    # Submit form via JS (more reliable than Enter key)
+    # 4. Fill fields using page.type() (character by character) instead of page.fill()
+    page.evaluate("document.querySelector('input[name=\"username\"]').value = ''")
+    page.type('input[name="username"]', username, delay=50)
+    page.evaluate("document.querySelector('input[name=\"password\"]').value = ''")
+    page.type('input[name="password"]', password, delay=50)
+    page.evaluate("document.querySelector('input[name=\"capt\"]').value = ''")
+    page.type('input[name="capt"]', str(captcha), delay=50)
+
+    # 5. Verify the values were actually set
+    vals = page.evaluate("""() => ({
+        u: document.querySelector('input[name="username"]').value,
+        p: document.querySelector('input[name="password"]').value,
+        c: document.querySelector('input[name="capt"]').value,
+        action: document.querySelector('form').action
+    })""")
+    print(f"  Field values -> user={vals['u']}, pass={'*'*len(vals['p'])}, capt={vals['c']}")
+    print(f"  Form action: {vals['action']}")
+
+    # 6. Submit form via JS
+    print("  Submitting form via JS...")
     page.evaluate("document.querySelector('form').submit()")
-    time.sleep(10)  # let server process and redirect
+    time.sleep(10)
 
-    current_url = page.url.lower()
-    print(f"  Current URL: {page.url}")
-    
-    # Check for error messages on the page
+    # 7. Check result
+    current_url = page.url
+    print(f"  URL after submit: {current_url}")
+
     body_text = page.inner_text("body")
-    if "invalid" in body_text.lower() or "wrong" in body_text.lower() or "error" in body_text.lower():
-        # Find the error message
-        for line in body_text.split("\n"):
-            line = line.strip()
-            if line and ("invalid" in line.lower() or "wrong" in line.lower() or "error" in line.lower() or "incorrect" in line.lower()):
-                print(f"  Error on page: {line[:100]}")
-                break
-    
-    current_url = page.url.lower()
-    current_url = page.url.lower()
-    print(f"  Current URL: {page.url}")
-    if "/login" in current_url.split("?")[0]:
+    print(f"  Body text (first 300 chars): {body_text[:300]}")
+
+    if "/login" in current_url.lower().split("?")[0]:
+        # Check for specific error messages
+        if "invalid" in body_text.lower() or "incorrect" in body_text.lower() or "wrong" in body_text.lower():
+            for line in body_text.split("\n"):
+                line = line.strip()
+                if line and any(w in line.lower() for w in ["invalid", "wrong", "error", "incorrect", "captcha"]):
+                    print(f"  ERROR MESSAGE: {line[:150]}")
         print("  Still on login page, retrying...")
         time.sleep(1)
         continue
-    print(f"  Logged in! -> {page.url}")
+
+    print(f"  Logged in! -> {current_url}")
     logged_in = True
     break
 
