@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-NumberPanel SMS Poller
-Polls SMS from http://51.89.99.105/NumberPanel/ and routes them
-into the Eden database exactly like sms_poller.py does for IVAS.
+NumberPanel SMS Poller  (Playwright headless browser edition)
+Polls SMS from http://51.89.99.105/NumberPanel/ using a real
+headless Chromium browser – same approach as bot.js but in Python.
 """
 
 import re
 import time
+import json
 import threading
 from datetime import datetime
 
-import httpx
-from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright, TimeoutError as PwTimeout
 
-# ── Service detection (same as sms_poller) ─────────
+# ── Service detection ──────────────────────
 SERVICE_KEYWORDS = {
     "Facebook": ["facebook"], "Google": ["google", "gmail"], "WhatsApp": ["whatsapp"],
     "Telegram": ["telegram"], "Instagram": ["instagram"], "Amazon": ["amazon"],
@@ -35,56 +35,79 @@ def detect_service(sms_text: str) -> str:
     return "Unknown"
 
 
-def solve_math_captcha(html: str) -> str | None:
-    """Find and solve the math captcha from the login form label."""
-    soup = BeautifulSoup(html, "html.parser")
+def solve_math_captcha(page_content: str) -> str | None:
+    """Solve the math captcha from a label like 'What is 5 + 6 = ?'"""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(page_content, "html.parser")
     for label in soup.find_all("label"):
         text = label.get_text()
         if "what is" in text.lower():
-            match = re.search(r"(\d+)\s*\+\s*(\d+)", text)
-            if match:
-                a, b = int(match.group(1)), int(match.group(2))
-                print(f"[NumberPanel] Captcha: {a} + {b} = {a + b}")
-                return str(a + b)
-            match = re.search(r"(\d+)\s*-\s*(\d+)", text)
-            if match:
-                a, b = int(match.group(1)), int(match.group(2))
-                print(f"[NumberPanel] Captcha: {a} - {b} = {a - b}")
-                return str(a - b)
-            match = re.search(r"(\d+)\s*[x\xd7\*]\s*(\d+)", text)
-            if match:
-                a, b = int(match.group(1)), int(match.group(2))
-                print(f"[NumberPanel] Captcha: {a} * {b} = {a * b}")
-                return str(a * b)
+            m = re.search(r"(\d+)\s*\+\s*(\d+)", text)
+            if m:
+                return str(int(m.group(1)) + int(m.group(2)))
+            m = re.search(r"(\d+)\s*-\s*(\d+)", text)
+            if m:
+                return str(int(m.group(1)) - int(m.group(2)))
+            m = re.search(r"(\d+)\s*[x\xd7\*]\s*(\d+)", text)
+            if m:
+                return str(int(m.group(1)) * int(m.group(2)))
     return None
 
 
+def _strip_html(text: str) -> str:
+    return re.sub(r"<[^>]+>", "", text)
+
+
 class NumberPanelPoller:
-    """Background service that polls NumberPanel for new SMS."""
+    """Background service that polls NumberPanel using a headless browser."""
 
     def __init__(self, app):
         self.app = app
-        self.client: httpx.Client | None = None
-        self.logged_in = False
-        self.last_login: float = 0
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self.poll_count = 0
         self.otps_fetched = 0
+        # Playwright objects (created inside the thread)
+        self._pw = None
+        self._browser = None
+        self._page = None
+        self._logged_in = False
+        self._last_login: float = 0
 
     # ── lifecycle ──────────────────────────
     def start(self):
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        print("[NumberPanel] Background thread started")
+        print("[NumberPanel] Playwright poller thread started")
 
     def stop(self):
         self._stop_event.set()
         if self._thread:
-            self._thread.join(timeout=10)
-        self._close_client()
+            self._thread.join(timeout=15)
+        self._cleanup_browser()
         print("[NumberPanel] Stopped")
+
+    def _cleanup_browser(self):
+        try:
+            if self._page:
+                self._page.close()
+        except Exception:
+            pass
+        try:
+            if self._browser:
+                self._browser.close()
+        except Exception:
+            pass
+        try:
+            if self._pw:
+                self._pw.stop()
+        except Exception:
+            pass
+        self._page = None
+        self._browser = None
+        self._pw = None
+        self._logged_in = False
 
     # ── main loop ──────────────────────────
     def _run_loop(self):
@@ -92,14 +115,12 @@ class NumberPanelPoller:
             try:
                 with self.app.app_context():
                     self._poll_once()
-            except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException) as e:
-                print(f"[NumberPanel] Connection error, forcing re-login: {e}")
-                self.logged_in = False
-                self._close_client()
             except Exception as e:
                 print(f"[NumberPanel] Error: {e}")
-                self.logged_in = False
-            # Read poll interval from DB settings (inside app context)
+                self._logged_in = False
+                self._cleanup_browser()
+
+            # Read poll interval from DB
             poll_wait = self.app.config.get("NP_POLL_INTERVAL", 30)
             try:
                 with self.app.app_context():
@@ -109,19 +130,11 @@ class NumberPanelPoller:
                 pass
             self._stop_event.wait(poll_wait)
 
-    def _close_client(self):
-        if self.client:
-            try:
-                self.client.close()
-            except Exception:
-                pass
-            self.client = None
-
     # ── single poll cycle ──────────────────
     def _poll_once(self):
         from models import db, SMS, Number, User, TestNumber, TestSMS, get_setting
 
-        # Check if poller is enabled via admin settings
+        # Check if poller is enabled
         enabled = get_setting("np_enabled", "1")
         if enabled == "0":
             return
@@ -129,14 +142,8 @@ class NumberPanelPoller:
         now = time.time()
         refresh = self.app.config.get("NP_LOGIN_REFRESH", 600)
 
-        # Read poll interval from DB settings
-        try:
-            poll_int = int(get_setting("np_poll_interval", str(self.app.config.get("NP_POLL_INTERVAL", 30))))
-        except (TypeError, ValueError):
-            poll_int = 30
-
-        # login / re-login
-        if not self.logged_in or (now - self.last_login) >= refresh:
+        # Login / re-login
+        if not self._logged_in or (now - self._last_login) >= refresh:
             if not self._login():
                 return
 
@@ -152,13 +159,11 @@ class NumberPanelPoller:
         messages = self._fetch_sms()
         new_count = 0
         test_count = 0
-
         otp_rate = float(get_setting("otp_rate", "0.005"))
 
         for msg in messages:
             ext_id = msg["id"]
 
-            # Check if already processed
             if SMS.query.filter_by(external_id=ext_id).first():
                 continue
             if TestSMS.query.filter_by(external_id=ext_id).first():
@@ -166,7 +171,7 @@ class NumberPanelPoller:
 
             phone = msg["number"]
 
-            # Check if this is a test number
+            # Test number?
             test_number = TestNumber.query.filter_by(phone_number=phone).first()
             if test_number and not test_number.is_expired:
                 test_sms = TestSMS(
@@ -182,7 +187,7 @@ class NumberPanelPoller:
                 test_count += 1
                 continue
 
-            # Normal flow: find the user who owns this number
+            # Normal flow
             number_rec = Number.query.filter_by(phone_number=phone, is_active=True).first()
             target_user_id = None
             if number_rec and number_rec.allocated_to_id:
@@ -204,7 +209,7 @@ class NumberPanelPoller:
             )
             db.session.add(sms_rec)
 
-            # credit user balance
+            # Credit user balance
             if target_user_id and number_rec and number_rec.allocated_to_id:
                 user = User.query.get(target_user_id)
                 if user:
@@ -222,140 +227,174 @@ class NumberPanelPoller:
 
         self.poll_count += 1
 
-    # ── login to NumberPanel ───────────────
+    # ── login via headless browser ─────────
     def _login(self) -> bool:
-        """Login with retry (captcha is flaky server-side)."""
         from models import get_setting
+
+        cfg = self.app.config
+        login_url = get_setting("np_login_url", cfg.get("NP_LOGIN_URL", ""))
+        username = get_setting("np_username", cfg.get("NP_USERNAME", ""))
+        password = get_setting("np_password", cfg.get("NP_PASSWORD", ""))
 
         for attempt in range(5):
             try:
-                self._close_client()
-
-                headers = {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                }
-                self.client = httpx.Client(
-                    timeout=30.0,
-                    follow_redirects=True,
-                    headers=headers,
-                    verify=False,
+                # Fresh browser each login attempt
+                self._cleanup_browser()
+                self._pw = sync_playwright().start()
+                self._browser = self._pw.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
                 )
+                self._page = self._browser.new_page()
+                self._page.set_extra_http_headers({
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                })
 
-                # Read credentials from DB settings, fall back to config.py
-                login_url = get_setting("np_login_url", self.app.config.get("NP_LOGIN_URL", ""))
-                signin_url = login_url.rsplit("/", 1)[0] + "/signin"
-                username = get_setting("np_username", self.app.config.get("NP_USERNAME", ""))
-                password = get_setting("np_password", self.app.config.get("NP_PASSWORD", ""))
+                # Navigate to login
+                print(f"[NumberPanel] Login attempt {attempt + 1} – navigating to {login_url}")
+                self._page.goto(login_url, wait_until="networkidle", timeout=30000)
 
-                page = self.client.get(login_url)
-
-                # Solve math captcha from <label>
-                captcha_answer = solve_math_captcha(page.text)
+                # Solve captcha from page HTML
+                html = self._page.content()
+                captcha_answer = solve_math_captcha(html)
                 if not captcha_answer:
-                    print("[NumberPanel] Could not solve captcha")
-                    continue
-
-                data = {
-                    "username": username,
-                    "password": password,
-                    "capt": captcha_answer,
-                }
-
-                # Grab any hidden fields
-                soup = BeautifulSoup(page.text, "html.parser")
-                form = soup.find("form")
-                if form:
-                    for inp in form.find_all("input", {"type": "hidden"}):
-                        name = inp.get("name")
-                        if name and name not in data:
-                            data[name] = inp.get("value", "")
-
-                resp = self.client.post(signin_url, data=data)
-
-                # Check if login succeeded (should redirect away from login page)
-                if "login" in str(resp.url).lower().split("?")[0].split("/")[-1]:
-                    print(f"[NumberPanel] Login attempt {attempt+1} failed, retrying...")
+                    print("[NumberPanel] Could not solve captcha, retrying...")
                     time.sleep(2)
                     continue
 
-                self.logged_in = True
-                self.last_login = time.time()
-                print("[NumberPanel] Login OK")
+                print(f"[NumberPanel] Captcha answer: {captcha_answer}")
+
+                # Fill in the form
+                self._page.fill('input[name="username"]', username)
+                self._page.fill('input[name="password"]', password)
+                self._page.fill('input[name="capt"]', captcha_answer)
+
+                # Submit via Enter and wait for server response
+                self._page.keyboard.press("Enter")
+                time.sleep(8)
+
+                # Check if we're still on the login page
+                current_url = self._page.url.lower()
+                if "/login" in current_url.split("?")[0]:
+                    print(f"[NumberPanel] Login attempt {attempt + 1} – still on login page, retrying...")
+                    time.sleep(2)
+                    continue
+
+                self._logged_in = True
+                self._last_login = time.time()
+                print(f"[NumberPanel] Login OK – at {self._page.url}")
                 return True
 
+            except PwTimeout:
+                print(f"[NumberPanel] Login timeout (attempt {attempt + 1})")
+                time.sleep(2)
             except Exception as e:
-                print(f"[NumberPanel] Login error (attempt {attempt+1}): {e}")
+                print(f"[NumberPanel] Login error (attempt {attempt + 1}): {e}")
                 time.sleep(2)
 
         print("[NumberPanel] Login FAILED after 5 attempts")
-        self.logged_in = False
+        self._logged_in = False
+        self._cleanup_browser()
         return False
 
-    # ── fetch SMS from NumberPanel ─────────
+    # ── fetch SMS via the browser ──────────
     def _fetch_sms(self) -> list[dict]:
         """
-        The NumberPanel SMS CDR Reports page uses a server-side DataTable.
-        We extract the sAjaxSource URL and call it to get JSON data.
+        Navigate to the SMS CDR Reports page with the headless browser,
+        intercept the DataTable AJAX call, and parse the JSON response.
         """
-        messages: list[dict] = []
         from models import get_setting
+        messages: list[dict] = []
         sms_url = get_setting("np_sms_url", self.app.config.get("NP_SMS_URL", ""))
 
+        if not self._page:
+            print("[NumberPanel] No browser page, skipping fetch")
+            self._logged_in = False
+            return []
+
         try:
-            # Load the reports page to get the sAjaxSource
-            resp = self.client.get(sms_url)
+            # We'll intercept the AJAX response from the DataTable
+            ajax_data = {}
 
-            # Check if session is still valid
-            if "login" in str(resp.url).lower().split("/")[-1]:
+            def handle_response(response):
+                """Capture the DataTable AJAX JSON response."""
+                try:
+                    url = response.url
+                    if "data_smscdr" in url or "sAjaxSource" in url or "sesskey" in url:
+                        if response.status == 200:
+                            try:
+                                ajax_data["json"] = response.json()
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+            self._page.on("response", handle_response)
+
+            # Navigate to SMS reports page
+            self._page.goto(sms_url, wait_until="networkidle", timeout=30000)
+
+            # Check if session expired (redirected to login)
+            if "/login" in self._page.url.lower().split("?")[0]:
                 print("[NumberPanel] Session expired, forcing re-login")
-                self.logged_in = False
+                self._logged_in = False
                 return []
 
-            # Extract sAjaxSource from DataTable init
-            match = re.search(r'"sAjaxSource"\s*:\s*"([^"]+)"', resp.text)
-            if not match:
-                print("[NumberPanel] No sAjaxSource found in page")
-                return []
+            # Wait a moment for AJAX to complete
+            self._page.wait_for_timeout(3000)
 
-            ajax_path = match.group(1)
-            # Build full URL (path is relative to /NumberPanel/agent/)
-            base_url = sms_url.rsplit("/", 1)[0]
-            ajax_url = f"{base_url}/{ajax_path}"
+            # Remove the response listener
+            self._page.remove_listener("response", handle_response)
 
-            # Fetch data from AJAX endpoint
-            r = self.client.get(ajax_url, headers={
-                "Referer": sms_url,
-                "X-Requested-With": "XMLHttpRequest",
-                "Accept": "application/json, text/javascript, */*; q=0.01",
-            })
+            # If we captured AJAX data, parse it
+            if "json" in ajax_data:
+                rows = ajax_data["json"].get("aaData") or ajax_data["json"].get("data") or []
+            else:
+                # Fallback: extract sAjaxSource from the page and fetch it manually
+                print("[NumberPanel] No intercepted AJAX, trying manual extraction...")
+                html = self._page.content()
+                match = re.search(r'"sAjaxSource"\s*:\s*"([^"]+)"', html)
+                if not match:
+                    print("[NumberPanel] No sAjaxSource found")
+                    return []
 
-            if r.status_code != 200:
-                print(f"[NumberPanel] AJAX returned {r.status_code}")
-                return []
+                ajax_path = match.group(1)
+                base = sms_url.rsplit("/", 1)[0]
+                ajax_url = f"{base}/{ajax_path}"
 
-            data = r.json()
-            rows = data.get("aaData") or data.get("data") or []
+                # Use the browser to fetch the AJAX URL (cookies included automatically)
+                resp = self._page.evaluate(f"""
+                    async () => {{
+                        const r = await fetch("{ajax_url}", {{
+                            headers: {{
+                                "X-Requested-With": "XMLHttpRequest",
+                                "Accept": "application/json"
+                            }}
+                        }});
+                        return await r.json();
+                    }}
+                """)
+                rows = resp.get("aaData") or resp.get("data") or []
 
             for row in rows:
                 if not isinstance(row, list) or len(row) < 6:
                     continue
 
-                # Columns: [0]=date, [1]=range/country, [2]=number, [3]=CLI, [4]=client, [5]=SMS
-                date = self._strip_html(str(row[0])).strip()
+                date = _strip_html(str(row[0])).strip()
 
-                # Skip the totals/summary row (date field contains commas or "NAN")
+                # Skip totals/summary row
                 if "," in date or "NAN" in date.upper() or "%" in date:
                     continue
-                country_raw = self._strip_html(str(row[1])).strip()
-                destination = self._strip_html(str(row[2])).strip()
-                source = self._strip_html(str(row[3])).strip()
-                sms_text = self._strip_html(str(row[5])).strip().replace("\x00", "")
+
+                country_raw = _strip_html(str(row[1])).strip()
+                destination = _strip_html(str(row[2])).strip()
+                source = _strip_html(str(row[3])).strip()
+                sms_text = _strip_html(str(row[5])).strip().replace("\x00", "")
 
                 if not sms_text or not destination:
                     continue
 
-                # Extract country name from range string (e.g. "Nigeria-Smile-KM-2" -> "Nigeria")
+                # Extract country from range string
                 country_match = re.match(r"([A-Za-z]+)", country_raw)
                 country = country_match.group(1) if country_match else country_raw
 
@@ -374,11 +413,10 @@ class NumberPanelPoller:
 
             return messages
 
+        except PwTimeout:
+            print("[NumberPanel] Timeout loading SMS page")
+            self._logged_in = False
+            return []
         except Exception as e:
             print(f"[NumberPanel] Fetch error: {e}")
             return []
-
-    @staticmethod
-    def _strip_html(text: str) -> str:
-        """Remove HTML tags from text."""
-        return re.sub(r"<[^>]+>", "", text)
