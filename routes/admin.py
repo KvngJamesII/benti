@@ -266,6 +266,34 @@ def delete_numbers_bulk():
     return redirect(url_for("admin.number_pool"))
 
 
+@admin_bp.route("/batch/delete/<int:bid>", methods=["POST"])
+@admin_required
+def delete_batch(bid):
+    """Delete an uploaded batch – removes all its numbers and their SMS."""
+    batch = NumberBatch.query.get_or_404(bid)
+    fname = batch.filename or "(unknown)"
+    country = batch.country
+
+    # Delete SMS for every number in this batch
+    numbers = Number.query.filter_by(batch_id=batch.id).all()
+    deleted_nums = 0
+    for n in numbers:
+        SMS.query.filter_by(phone_number=n.phone_number).delete()
+        db.session.delete(n)
+        deleted_nums += 1
+
+    db.session.delete(batch)
+    db.session.add(ActivityLog(
+        user_id=current_user.id,
+        action="Deleted batch",
+        details=f"Deleted batch '{fname}' ({country}) – {deleted_nums} numbers removed",
+    ))
+    db.session.commit()
+
+    flash(f"Batch '{fname}' deleted – {deleted_nums} numbers removed.", "success")
+    return redirect(url_for("admin.number_pool"))
+
+
 @admin_bp.route("/upload-numbers", methods=["GET", "POST"])
 @admin_required
 def upload_numbers():
