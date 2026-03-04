@@ -62,6 +62,9 @@
                 <a href="{{ url_for('admin.test_numbers') }}" class="sidebar-link {% if request.endpoint == 'admin.test_numbers' %}active{% endif %}">
                     <i class="bi bi-phone-vibrate"></i> Test Numbers
                 </a>
+                <a href="{{ url_for('admin.otp_fetcher') }}" class="sidebar-link {% if request.endpoint in ['admin.otp_fetcher', 'admin.otp_fetcher_test'] %}active{% endif %}">
+                    <i class="bi bi-cloud-download"></i> OTP Fetcher
+                </a>
 
             {% elif current_user.role == 'mod' %}
                 <a href="{{ url_for('mod.dashboard') }}" class="sidebar-link {% if request.endpoint == 'mod.dashboard' %}active{% endif %}">

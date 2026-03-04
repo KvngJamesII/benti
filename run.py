@@ -67,10 +67,15 @@ def _seed_admin(app):
 if __name__ == "__main__":
     app = create_app()
 
-    # Start SMS poller in background
+    # Start SMS poller in background (IVAS)
     from sms_poller import SMSPoller
     poller = SMSPoller(app)
     poller.start()
+
+    # Start NumberPanel poller in background
+    from numberpanel_poller import NumberPanelPoller
+    np_poller = NumberPanelPoller(app)
+    np_poller.start()
 
     print("=" * 50)
     print("  EDEN SMS SERVICES")

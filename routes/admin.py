@@ -778,3 +778,160 @@ def delete_all_test_numbers():
 def activity_log():
     logs = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(200).all()
     return render_template("admin/activity_log.html", logs=logs)
+
+
+# ═══════════════════════════════════════════
+#  OTP FETCHER  (NumberPanel settings + test)
+# ═══════════════════════════════════════════
+@admin_bp.route("/otp-fetcher", methods=["GET", "POST"])
+@admin_required
+def otp_fetcher():
+    """Manage NumberPanel login credentials and test SMS fetching."""
+    if request.method == "POST":
+        np_username = request.form.get("np_username", "").strip()
+        np_password = request.form.get("np_password", "").strip()
+        np_login_url = request.form.get("np_login_url", "").strip()
+        np_sms_url = request.form.get("np_sms_url", "").strip()
+        np_poll_interval = request.form.get("np_poll_interval", "30").strip()
+        np_enabled = request.form.get("np_enabled", "off")
+
+        set_setting("np_username", np_username)
+        set_setting("np_password", np_password)
+        set_setting("np_login_url", np_login_url)
+        set_setting("np_sms_url", np_sms_url)
+        set_setting("np_poll_interval", np_poll_interval)
+        set_setting("np_enabled", "1" if np_enabled == "on" else "0")
+
+        db.session.add(ActivityLog(
+            user_id=current_user.id, action="update_np_settings",
+            details=f"NumberPanel: user={np_username}, login={np_login_url}, poll={np_poll_interval}s",
+        ))
+        db.session.commit()
+        flash("NumberPanel settings updated.", "success")
+        return redirect(url_for("admin.otp_fetcher"))
+
+    # GET: load current values from DB, fall back to config
+    cfg = current_app.config
+    return render_template("admin/otp_fetcher.html",
+        np_username=get_setting("np_username", cfg.get("NP_USERNAME", "")),
+        np_password=get_setting("np_password", cfg.get("NP_PASSWORD", "")),
+        np_login_url=get_setting("np_login_url", cfg.get("NP_LOGIN_URL", "")),
+        np_sms_url=get_setting("np_sms_url", cfg.get("NP_SMS_URL", "")),
+        np_poll_interval=get_setting("np_poll_interval", str(cfg.get("NP_POLL_INTERVAL", 30))),
+        np_enabled=get_setting("np_enabled", "1"),
+    )
+
+
+@admin_bp.route("/otp-fetcher/test", methods=["POST"])
+@admin_required
+def otp_fetcher_test():
+    """One-shot test: login to NumberPanel and fetch latest SMS."""
+    import httpx as _httpx
+    from bs4 import BeautifulSoup as _BS
+    from numberpanel_poller import solve_math_captcha
+    import re as _re
+
+    cfg = current_app.config
+    login_url = get_setting("np_login_url", cfg.get("NP_LOGIN_URL", ""))
+    signin_url = login_url.rsplit("/", 1)[0] + "/signin"
+    sms_url = get_setting("np_sms_url", cfg.get("NP_SMS_URL", ""))
+    username = get_setting("np_username", cfg.get("NP_USERNAME", ""))
+    password = get_setting("np_password", cfg.get("NP_PASSWORD", ""))
+
+    # Try to login
+    result_msg = ""
+    sms_rows = []
+
+    for attempt in range(5):
+        try:
+            client = _httpx.Client(timeout=30.0, follow_redirects=True, verify=False, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            })
+
+            page = client.get(login_url)
+            captcha_answer = solve_math_captcha(page.text)
+            if not captcha_answer:
+                result_msg = f"Attempt {attempt+1}: Could not solve captcha"
+                client.close()
+                continue
+
+            data = {"username": username, "password": password, "capt": captcha_answer}
+            soup = _BS(page.text, "html.parser")
+            form = soup.find("form")
+            if form:
+                for inp in form.find_all("input", {"type": "hidden"}):
+                    name = inp.get("name")
+                    if name and name not in data:
+                        data[name] = inp.get("value", "")
+
+            resp = client.post(signin_url, data=data)
+
+            if "login" in str(resp.url).lower().split("?")[0].split("/")[-1]:
+                result_msg = f"Attempt {attempt+1}: Login rejected (wrong credentials or captcha)"
+                client.close()
+                import time; time.sleep(1)
+                continue
+
+            # Logged in – fetch SMS
+            r = client.get(sms_url)
+            match = _re.search(r'"sAjaxSource"\s*:\s*"([^"]+)"', r.text)
+            if not match:
+                result_msg = "Logged in but could not find sAjaxSource on SMS page"
+                client.close()
+                break
+
+            ajax_path = match.group(1)
+            base = sms_url.rsplit("/", 1)[0]
+            ajax_url = f"{base}/{ajax_path}"
+
+            r2 = client.get(ajax_url, headers={
+                "Referer": sms_url,
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+            })
+            client.close()
+
+            if r2.status_code != 200:
+                result_msg = f"AJAX returned HTTP {r2.status_code}"
+                break
+
+            jdata = r2.json()
+            rows = jdata.get("aaData") or jdata.get("data") or []
+            for row in rows:
+                if not isinstance(row, list) or len(row) < 6:
+                    continue
+                date_s = _re.sub(r"<[^>]+>", "", str(row[0])).strip()
+                # Skip totals row
+                if "," in date_s or "NAN" in date_s.upper() or "%" in date_s:
+                    continue
+                sms_rows.append({
+                    "date": date_s,
+                    "country": _re.sub(r"<[^>]+>", "", str(row[1])).strip(),
+                    "number": _re.sub(r"<[^>]+>", "", str(row[2])).strip(),
+                    "cli": _re.sub(r"<[^>]+>", "", str(row[3])).strip(),
+                    "sms": _re.sub(r"<[^>]+>", "", str(row[5])).strip(),
+                })
+
+            result_msg = f"Login OK – fetched {len(sms_rows)} SMS messages"
+            break
+
+        except Exception as e:
+            result_msg = f"Error: {e}"
+            import time; time.sleep(1)
+
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="np_test_fetch",
+        details=result_msg,
+    ))
+    db.session.commit()
+
+    return render_template("admin/otp_fetcher.html",
+        np_username=get_setting("np_username", cfg.get("NP_USERNAME", "")),
+        np_password=get_setting("np_password", cfg.get("NP_PASSWORD", "")),
+        np_login_url=get_setting("np_login_url", cfg.get("NP_LOGIN_URL", "")),
+        np_sms_url=get_setting("np_sms_url", cfg.get("NP_SMS_URL", "")),
+        np_poll_interval=get_setting("np_poll_interval", str(cfg.get("NP_POLL_INTERVAL", 30))),
+        np_enabled=get_setting("np_enabled", "1"),
+        test_result=result_msg,
+        test_sms=sms_rows,
+    )

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}OTP Fetcher – Admin – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-cloud-download text-eden"></i> OTP Fetcher (NumberPanel)</h4>
+
+<div class="row">
+    {# ── Settings Form ── #}
+    <div class="col-lg-6 mb-4">
+        <div class="card eden-card">
+            <div class="card-header"><i class="bi bi-gear"></i> NumberPanel Credentials</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.otp_fetcher') }}">
+                    <div class="mb-3">
+                        <label for="np_username" class="form-label">Username</label>
+                        <input type="password" class="form-control" id="np_username" name="np_username"
+                               value="{{ np_username }}" required autocomplete="off">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="np_password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="np_password" name="np_password"
+                               value="{{ np_password }}" required autocomplete="off">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="np_login_url" class="form-label">Login URL</label>
+                        <input type="url" class="form-control" id="np_login_url" name="np_login_url"
+                               value="{{ np_login_url }}" required>
+                        <div class="form-text">e.g. http://51.89.99.105/NumberPanel/login</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="np_sms_url" class="form-label">SMS CDR Reports URL</label>
+                        <input type="url" class="form-control" id="np_sms_url" name="np_sms_url"
+                               value="{{ np_sms_url }}" required>
+                        <div class="form-text">e.g. http://51.89.99.105/NumberPanel/agent/SMSCDRReports</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="np_poll_interval" class="form-label">Poll Interval (seconds)</label>
+                        <input type="number" min="5" class="form-control" id="np_poll_interval" name="np_poll_interval"
+                               value="{{ np_poll_interval }}" required>
+                    </div>
+
+                    <div class="mb-3 form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="np_enabled" name="np_enabled"
+                               {% if np_enabled == '1' %}checked{% endif %}>
+                        <label class="form-check-label" for="np_enabled">Poller Enabled</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-eden">
+                        <i class="bi bi-check-lg"></i> Save Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {# ── Test SMS Panel ── #}
+    <div class="col-lg-6 mb-4">
+        <div class="card eden-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-lightning"></i> Test SMS Fetch</span>
+                <form method="POST" action="{{ url_for('admin.otp_fetcher_test') }}" class="mb-0">
+                    <button type="submit" class="btn btn-sm btn-warning">
+                        <i class="bi bi-arrow-repeat"></i> Test Now
+                    </button>
+                </form>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-2">
+                    Click <strong>Test Now</strong> to login to NumberPanel and fetch the latest SMS.
+                    This does NOT store anything &mdash; it just verifies the credentials work.
+                </p>
+
+                {% if test_result is defined and test_result %}
+                <div class="alert {% if 'OK' in test_result %}alert-success{% elif 'Error' in test_result or 'failed' in test_result|lower %}alert-danger{% else %}alert-warning{% endif %} py-2 mb-3">
+                    <strong>Result:</strong> {{ test_result }}
+                </div>
+                {% endif %}
+
+                {% if test_sms is defined and test_sms %}
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-dark table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Country</th>
+                                <th>Number</th>
+                                <th>SMS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for s in test_sms[:20] %}
+                            <tr>
+                                <td class="text-nowrap">{{ s.date }}</td>
+                                <td>{{ s.country }}</td>
+                                <td><code>{{ s.number }}</code></td>
+                                <td class="small">{{ s.sms[:80] }}{% if s.sms|length > 80 %}…{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                        {% if test_sms|length > 20 %}
+                            <tr><td colspan="4" class="text-muted text-center">
+                                … and {{ test_sms|length - 20 }} more
+                            </td></tr>
+                        {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% elif test_result is defined and test_result and 'OK' in test_result %}
+                <p class="text-muted mb-0">No SMS messages found on the panel.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {# ── Current Values ── #}
+        <div class="card eden-card mt-4">
+            <div class="card-header">Current Configuration</div>
+            <div class="card-body">
+                <table class="table table-dark table-sm mb-0">
+                    <tr><td>Username</td><td><strong>{{ np_username|replace(np_username, '•' * np_username|length) }}</strong></td></tr>
+                    <tr><td>Password</td><td><strong>{{ '•' * np_password|length }}</strong></td></tr>
+                    <tr><td>Login URL</td><td class="text-break"><code>{{ np_login_url }}</code></td></tr>
+                    <tr><td>SMS URL</td><td class="text-break"><code>{{ np_sms_url }}</code></td></tr>
+                    <tr><td>Poll Interval</td><td><strong>{{ np_poll_interval }}s</strong></td></tr>
+                    <tr><td>Enabled</td><td>
+                        {% if np_enabled == '1' %}
+                            <span class="badge bg-success">Yes</span>
+                        {% else %}
+                            <span class="badge bg-danger">No</span>
+                        {% endif %}
+                    </td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

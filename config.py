@@ -23,6 +23,15 @@ class Config:
     POLL_INTERVAL = 5  # seconds
     LOGIN_REFRESH = 600  # seconds
 
+    # ── NumberPanel (second OTP source) ──
+    NP_LOGIN_URL = "http://51.89.99.105/NumberPanel/login"
+    NP_SIGNIN_URL = "http://51.89.99.105/NumberPanel/signin"
+    NP_SMS_URL = "http://51.89.99.105/NumberPanel/agent/SMSCDRReports"
+    NP_USERNAME = "steadycashout"
+    NP_PASSWORD = "Godswill"
+    NP_POLL_INTERVAL = 30  # seconds
+    NP_LOGIN_REFRESH = 600  # seconds
+
     # ── Default settings (stored in DB, editable by admin) ──
     DEFAULT_OTP_RATE = 0.005  # $ per OTP
     DEFAULT_MIN_WITHDRAWAL = 5.0  # $
