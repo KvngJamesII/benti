@@ -264,26 +264,30 @@ class NumberPanelPoller:
 
                 print(f"[NumberPanel] Captcha answer: {captcha_answer}")
 
-                # Fill in the form
-                self._page.fill('input[name="username"]', username)
-                self._page.fill('input[name="password"]', password)
-                self._page.fill('input[name="capt"]', captcha_answer)
+                # Fill in the form (character-by-character for reliability)
+                self._page.evaluate("document.querySelector('input[name=\"username\"]').value = ''")
+                self._page.type('input[name="username"]', username, delay=50)
+                self._page.evaluate("document.querySelector('input[name=\"password\"]').value = ''")
+                self._page.type('input[name="password"]', password, delay=50)
+                self._page.evaluate("document.querySelector('input[name=\"capt\"]').value = ''")
+                self._page.type('input[name="capt"]', str(captcha_answer), delay=50)
 
                 # Submit the form via JS (most reliable across environments)
                 self._page.evaluate("document.querySelector('form').submit()")
                 time.sleep(10)
 
-                # Check if we're still on the login page
-                current_url = self._page.url.lower()
-                if "/login" in current_url.split("?")[0]:
-                    print(f"[NumberPanel] Login attempt {attempt + 1} – still on login page, retrying...")
-                    time.sleep(2)
-                    continue
+                # Check if login succeeded by looking at page CONTENT
+                # (form.submit() via JS may not update the URL bar)
+                body_text = self._page.inner_text("body").lower()
+                if "welcome back" in body_text or "dashboard" in body_text or "sms module" in body_text:
+                    self._logged_in = True
+                    self._last_login = time.time()
+                    print(f"[NumberPanel] Login OK")
+                    return True
 
-                self._logged_in = True
-                self._last_login = time.time()
-                print(f"[NumberPanel] Login OK – at {self._page.url}")
-                return True
+                print(f"[NumberPanel] Login attempt {attempt + 1} – page has no dashboard content, retrying...")
+                time.sleep(2)
+                continue
 
             except PwTimeout:
                 print(f"[NumberPanel] Login timeout (attempt {attempt + 1})")

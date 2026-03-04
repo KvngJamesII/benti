@@ -858,13 +858,18 @@ def otp_fetcher_test():
                     result_msg = f"Attempt {attempt+1}: Could not solve captcha"
                     continue
 
-                page.fill('input[name="username"]', username)
-                page.fill('input[name="password"]', password)
-                page.fill('input[name="capt"]', captcha_answer)
+                page.evaluate("document.querySelector('input[name=\"username\"]').value = ''")
+                page.type('input[name="username"]', username, delay=50)
+                page.evaluate("document.querySelector('input[name=\"password\"]').value = ''")
+                page.type('input[name="password"]', password, delay=50)
+                page.evaluate("document.querySelector('input[name=\"capt\"]').value = ''")
+                page.type('input[name="capt"]', str(captcha_answer), delay=50)
                 page.evaluate("document.querySelector('form').submit()")
                 import time as _time; _time.sleep(10)
 
-                if "/login" in page.url.lower().split("?")[0]:
+                # Check login by page content (URL may not update)
+                body_text = page.inner_text("body").lower()
+                if "welcome back" not in body_text and "dashboard" not in body_text and "sms module" not in body_text:
                     result_msg = f"Attempt {attempt+1}: Login rejected"
                     import time; time.sleep(1)
                     continue

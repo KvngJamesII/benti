@@ -68,20 +68,16 @@ for attempt in range(5):
     body_text = page.inner_text("body")
     print(f"  Body text (first 300 chars): {body_text[:300]}")
 
-    if "/login" in current_url.lower().split("?")[0]:
-        # Check for specific error messages
-        if "invalid" in body_text.lower() or "incorrect" in body_text.lower() or "wrong" in body_text.lower():
-            for line in body_text.split("\n"):
-                line = line.strip()
-                if line and any(w in line.lower() for w in ["invalid", "wrong", "error", "incorrect", "captcha"]):
-                    print(f"  ERROR MESSAGE: {line[:150]}")
-        print("  Still on login page, retrying...")
-        time.sleep(1)
-        continue
+    # Check login by page CONTENT (URL may not update after form.submit())
+    body_lower = body_text.lower()
+    if "welcome back" in body_lower or "dashboard" in body_lower or "sms module" in body_lower:
+        print(f"  Logged in! (dashboard content detected)")
+        logged_in = True
+        break
 
-    print(f"  Logged in! -> {current_url}")
-    logged_in = True
-    break
+    print("  No dashboard content found, retrying...")
+    time.sleep(1)
+    continue
 
 if not logged_in:
     print("FAILED to login after 5 attempts")
