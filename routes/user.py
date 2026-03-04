@@ -4,7 +4,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from functools import wraps
 from models import (
-    db, User, Number, SMS, Withdrawal, ActivityLog, Announcement, get_setting,
+    db, User, Number, SMS, Withdrawal, ActivityLog, Announcement,
+    TestNumber, TestSMS, get_setting,
 )
 
 user_bp = Blueprint("user", __name__, url_prefix="/user")
@@ -108,13 +109,14 @@ def download_numbers(country):
 @user_bp.route("/my-otps")
 @user_required
 def my_otps():
-    date_str = request.args.get("date", "")
+    date_from = request.args.get("from", "")
+    date_to = request.args.get("to", "")
     q = SMS.query.filter_by(user_id=current_user.id)
 
-    if date_str:
+    if date_from:
         try:
-            dt = datetime.strptime(date_str, "%Y-%m-%d")
-            q = q.filter(SMS.received_at >= dt, SMS.received_at < dt + timedelta(days=1))
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            q = q.filter(SMS.received_at >= dt_from)
         except ValueError:
             pass
     else:
@@ -122,8 +124,15 @@ def my_otps():
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         q = q.filter(SMS.received_at >= today_start)
 
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            q = q.filter(SMS.received_at < dt_to)
+        except ValueError:
+            pass
+
     sms_list = q.order_by(SMS.received_at.desc()).all()
-    return render_template("user/my_otps.html", sms_list=sms_list, date_str=date_str)
+    return render_template("user/my_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to)
 
 
 # ═══════════════════════════════════════════
@@ -245,3 +254,55 @@ def withdrawal():
         balance=balance, min_withdrawal=min_wd,
         withdrawal_day=withdrawal_day, history=history,
     )
+
+
+# ═══════════════════════════════════════════
+#  TEST NUMBERS  (visible to all users)
+# ═══════════════════════════════════════════
+@user_bp.route("/test-numbers")
+@user_required
+def test_numbers():
+    from routes.admin import COUNTRY_FLAGS
+    # Clean expired
+    expired = TestNumber.query.filter(TestNumber.expires_at <= datetime.utcnow()).all()
+    for tn in expired:
+        TestSMS.query.filter_by(phone_number=tn.phone_number).delete()
+        db.session.delete(tn)
+    if expired:
+        db.session.commit()
+
+    numbers = TestNumber.query.order_by(TestNumber.country, TestNumber.phone_number).all()
+    return render_template("user/test_numbers.html",
+        numbers=numbers, country_flags=COUNTRY_FLAGS,
+    )
+
+
+# ═══════════════════════════════════════════
+#  TEST OTPs  (censored messages for test numbers)
+# ═══════════════════════════════════════════
+@user_bp.route("/test-otps")
+@user_required
+def test_otps():
+    date_from = request.args.get("from", "")
+    date_to = request.args.get("to", "")
+    q = TestSMS.query
+
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            q = q.filter(TestSMS.received_at >= dt_from)
+        except ValueError:
+            pass
+    else:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        q = q.filter(TestSMS.received_at >= today_start)
+
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            q = q.filter(TestSMS.received_at < dt_to)
+        except ValueError:
+            pass
+
+    sms_list = q.order_by(TestSMS.received_at.desc()).all()
+    return render_template("user/test_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to)

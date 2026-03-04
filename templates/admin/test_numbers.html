@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Test Numbers – Admin – Eden SMS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4><i class="bi bi-phone-vibrate text-eden"></i> Test Numbers</h4>
+    <form method="POST" action="{{ url_for('admin.delete_all_test_numbers') }}" class="d-inline">
+        <button type="submit" class="btn btn-outline-danger btn-sm"
+                onclick="return confirm('Delete ALL test numbers and their OTPs?')">
+            <i class="bi bi-trash"></i> Clear All
+        </button>
+    </form>
+</div>
+
+{# Upload / Paste form #}
+<div class="card eden-card mb-4">
+    <div class="card-header"><i class="bi bi-plus-circle me-1"></i> Add Test Numbers</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin.add_test_numbers') }}" enctype="multipart/form-data">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Country (Range)</label>
+                    <input type="text" name="country" class="form-control" placeholder="e.g. United States" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Upload .txt files</label>
+                    <input type="file" name="files" class="form-control" accept=".txt" multiple>
+                    <div class="form-text">Upload one or more .txt files (one number per line)</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Or paste numbers</label>
+                    <textarea name="pasted_numbers" class="form-control" rows="3" placeholder="One number per line..."></textarea>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-eden">
+                    <i class="bi bi-plus-lg"></i> Add Test Numbers (expire in 23h)
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# Current test numbers table #}
+<div class="card eden-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Active Test Numbers</span>
+        <span class="badge bg-eden">{{ numbers|length }} numbers</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Range (Country)</th>
+                        <th>Test Number</th>
+                        <th>Source</th>
+                        <th>Expires</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for n in numbers %}
+                <tr>
+                    <td>{{ country_flags.get(n.country, '') }} {{ n.country }}</td>
+                    <td><code>{{ n.phone_number }}</code></td>
+                    <td><small class="text-muted">{{ n.filename or '-' }}</small></td>
+                    <td>
+                        {% set remaining = (n.expires_at - now).total_seconds() if not n.is_expired else 0 %}
+                        {% if n.is_expired %}
+                            <span class="badge bg-danger">Expired</span>
+                        {% else %}
+                            <span class="badge bg-info">{{ '%dh %dm'|format(remaining // 3600, (remaining % 3600) // 60) }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin.delete_test_number', tid=n.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-danger btn-xs" title="Delete"
+                                    onclick="return confirm('Delete test number {{ n.phone_number }}?')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-muted text-center py-4">
+                    <i class="bi bi-phone-vibrate fs-1 d-block mb-2"></i>
+                    No test numbers. Add some above.
+                </td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

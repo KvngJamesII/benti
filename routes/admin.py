@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 from models import (
     db, User, Number, NumberBatch, SMS, Withdrawal, Setting,
-    ActivityLog, Announcement, get_setting, set_setting,
+    ActivityLog, Announcement, TestNumber, TestSMS, get_setting, set_setting,
 )
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -210,6 +210,62 @@ def number_pool():
     )
 
 
+@admin_bp.route("/numbers/delete/<int:nid>", methods=["POST"])
+@admin_required
+def delete_number(nid):
+    """Delete a single number from the pool and everywhere it's referenced."""
+    number = Number.query.get_or_404(nid)
+    phone = number.phone_number
+
+    # Delete all SMS messages associated with this number
+    SMS.query.filter_by(phone_number=phone).delete()
+
+    # Remove the number itself
+    db.session.delete(number)
+
+    log = ActivityLog(
+        user_id=current_user.id,
+        action="Deleted number",
+        details=f"Deleted {phone} and all associated SMS",
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    flash(f"Number {phone} deleted successfully.", "success")
+    return redirect(url_for("admin.number_pool"))
+
+
+@admin_bp.route("/numbers/delete-bulk", methods=["POST"])
+@admin_required
+def delete_numbers_bulk():
+    """Delete multiple selected numbers from the pool."""
+    number_ids = request.form.getlist("number_ids")
+    if not number_ids:
+        flash("No numbers selected.", "warning")
+        return redirect(url_for("admin.number_pool"))
+
+    deleted = 0
+    for nid in number_ids:
+        number = Number.query.get(int(nid))
+        if number:
+            SMS.query.filter_by(phone_number=number.phone_number).delete()
+            db.session.delete(number)
+            deleted += 1
+
+    db.session.commit()
+
+    log = ActivityLog(
+        user_id=current_user.id,
+        action="Bulk deleted numbers",
+        details=f"Deleted {deleted} numbers and their associated SMS",
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    flash(f"Successfully deleted {deleted} numbers.", "success")
+    return redirect(url_for("admin.number_pool"))
+
+
 @admin_bp.route("/upload-numbers", methods=["GET", "POST"])
 @admin_required
 def upload_numbers():
@@ -356,12 +412,19 @@ def revoke_numbers(uid):
 @admin_bp.route("/sms-stats")
 @admin_required
 def sms_stats():
-    date_str = request.args.get("date", "")
+    date_from = request.args.get("from", "")
+    date_to = request.args.get("to", "")
     q = SMS.query
-    if date_str:
+    if date_from:
         try:
-            dt = datetime.strptime(date_str, "%Y-%m-%d")
-            q = q.filter(SMS.received_at >= dt, SMS.received_at < dt + timedelta(days=1))
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            q = q.filter(SMS.received_at >= dt_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            q = q.filter(SMS.received_at < dt_to)
         except ValueError:
             pass
     sms_list = q.order_by(SMS.received_at.desc()).limit(500).all()
@@ -376,7 +439,7 @@ def sms_stats():
     service_stats = db.session.query(SMS.service, func.count(SMS.id)).group_by(SMS.service).all()
 
     return render_template("admin/sms_stats.html",
-        sms_list=sms_list, date_str=date_str,
+        sms_list=sms_list, date_from=date_from, date_to=date_to,
         total_all=total_all, today_count=today_count,
         service_stats=service_stats,
     )
@@ -554,6 +617,129 @@ def toggle_announcement(aid):
     status = "enabled" if ann.is_active else "disabled"
     flash(f"Announcement {status}.", "info")
     return redirect(url_for("admin.announcements"))
+
+
+# ═══════════════════════════════════════════
+#  TEST NUMBERS MANAGEMENT
+# ═══════════════════════════════════════════
+@admin_bp.route("/test-numbers")
+@admin_required
+def test_numbers():
+    """View all test numbers, auto-clean expired ones."""
+    # Clean expired test numbers first
+    expired = TestNumber.query.filter(TestNumber.expires_at <= datetime.utcnow()).all()
+    for tn in expired:
+        # Also remove associated test SMS
+        TestSMS.query.filter_by(phone_number=tn.phone_number).delete()
+        db.session.delete(tn)
+    if expired:
+        db.session.commit()
+
+    numbers = TestNumber.query.order_by(TestNumber.created_at.desc()).all()
+    countries = sorted(set(n.country for n in numbers))
+    return render_template("admin/test_numbers.html",
+        numbers=numbers, countries=countries, country_flags=COUNTRY_FLAGS,
+        now=datetime.utcnow(),
+    )
+
+
+@admin_bp.route("/test-numbers/add", methods=["POST"])
+@admin_required
+def add_test_numbers():
+    """Add test numbers by pasting or uploading txt files."""
+    country = request.form.get("country", "").strip()
+    if not country:
+        flash("Country is required.", "danger")
+        return redirect(url_for("admin.test_numbers"))
+
+    expires_at = datetime.utcnow() + timedelta(hours=23)
+    added = 0
+    skipped = 0
+
+    # Handle pasted numbers
+    pasted = request.form.get("pasted_numbers", "").strip()
+    if pasted:
+        raw = [line.strip() for line in pasted.splitlines() if line.strip()]
+        raw = list(dict.fromkeys(raw))  # dedup
+        for num in raw:
+            clean = num.replace(" ", "").replace("-", "").replace("+", "")
+            if not clean:
+                continue
+            if TestNumber.query.filter_by(phone_number=clean).first():
+                skipped += 1
+                continue
+            tn = TestNumber(
+                phone_number=clean, country=country,
+                filename="pasted", uploaded_by_id=current_user.id,
+                expires_at=expires_at,
+            )
+            db.session.add(tn)
+            added += 1
+
+    # Handle file uploads (multiple)
+    files = request.files.getlist("files")
+    for f in files:
+        if not f or not f.filename:
+            continue
+        content = f.read().decode("utf-8", errors="ignore")
+        raw = [line.strip() for line in content.splitlines() if line.strip()]
+        raw = list(dict.fromkeys(raw))
+        for num in raw:
+            clean = num.replace(" ", "").replace("-", "").replace("+", "")
+            if not clean:
+                continue
+            if TestNumber.query.filter_by(phone_number=clean).first():
+                skipped += 1
+                continue
+            tn = TestNumber(
+                phone_number=clean, country=country,
+                filename=f.filename, uploaded_by_id=current_user.id,
+                expires_at=expires_at,
+            )
+            db.session.add(tn)
+            added += 1
+
+    db.session.commit()
+
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="add_test_numbers",
+        details=f"Added {added} test numbers for {country} (skipped {skipped} dupes)",
+    ))
+    db.session.commit()
+
+    flash(f"Added {added} test numbers for {country}. Skipped {skipped} duplicates. They expire in 23 hours.", "success")
+    return redirect(url_for("admin.test_numbers"))
+
+
+@admin_bp.route("/test-numbers/delete/<int:tid>", methods=["POST"])
+@admin_required
+def delete_test_number(tid):
+    tn = TestNumber.query.get_or_404(tid)
+    phone = tn.phone_number
+    TestSMS.query.filter_by(phone_number=phone).delete()
+    db.session.delete(tn)
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="delete_test_number",
+        details=f"Deleted test number {phone}",
+    ))
+    db.session.commit()
+    flash(f"Test number {phone} deleted.", "success")
+    return redirect(url_for("admin.test_numbers"))
+
+
+@admin_bp.route("/test-numbers/delete-all", methods=["POST"])
+@admin_required
+def delete_all_test_numbers():
+    count = TestNumber.query.count()
+    TestSMS.query.delete()
+    TestNumber.query.delete()
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="delete_all_test_numbers",
+        details=f"Deleted all {count} test numbers and their SMS",
+    ))
+    db.session.commit()
+    flash(f"Deleted all {count} test numbers.", "success")
+    return redirect(url_for("admin.test_numbers"))
 
 
 # ═══════════════════════════════════════════

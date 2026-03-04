@@ -56,6 +56,10 @@
                 <a href="{{ url_for('admin.activity_log') }}" class="sidebar-link {% if request.endpoint == 'admin.activity_log' %}active{% endif %}">
                     <i class="bi bi-journal-text"></i> Activity Log
                 </a>
+                <hr class="sidebar-divider">
+                <a href="{{ url_for('admin.test_numbers') }}" class="sidebar-link {% if request.endpoint == 'admin.test_numbers' %}active{% endif %}">
+                    <i class="bi bi-phone-vibrate"></i> Test Numbers
+                </a>
 
             {% elif current_user.role == 'mod' %}
                 <a href="{{ url_for('mod.dashboard') }}" class="sidebar-link {% if request.endpoint == 'mod.dashboard' %}active{% endif %}">
@@ -69,6 +73,13 @@
                 </a>
                 <a href="{{ url_for('mod.allocate_numbers') }}" class="sidebar-link {% if request.endpoint == 'mod.allocate_numbers' %}active{% endif %}">
                     <i class="bi bi-arrows-move"></i> Allocate Numbers
+                </a>
+                <hr class="sidebar-divider">
+                <a href="{{ url_for('mod.test_numbers') }}" class="sidebar-link {% if request.endpoint == 'mod.test_numbers' %}active{% endif %}">
+                    <i class="bi bi-phone-vibrate"></i> Test Numbers
+                </a>
+                <a href="{{ url_for('mod.test_otps') }}" class="sidebar-link {% if request.endpoint == 'mod.test_otps' %}active{% endif %}">
+                    <i class="bi bi-chat-square-dots"></i> Test OTPs
                 </a>
 
             {% else %}
@@ -89,6 +100,13 @@
                 </a>
                 <a href="{{ url_for('user.withdrawal') }}" class="sidebar-link {% if request.endpoint == 'user.withdrawal' %}active{% endif %}">
                     <i class="bi bi-wallet2"></i> Withdrawal
+                </a>
+                <hr class="sidebar-divider">
+                <a href="{{ url_for('user.test_numbers') }}" class="sidebar-link {% if request.endpoint == 'user.test_numbers' %}active{% endif %}">
+                    <i class="bi bi-phone-vibrate"></i> Test Numbers
+                </a>
+                <a href="{{ url_for('user.test_otps') }}" class="sidebar-link {% if request.endpoint == 'user.test_otps' %}active{% endif %}">
+                    <i class="bi bi-chat-square-dots"></i> Test OTPs
                 </a>
             {% endif %}
 

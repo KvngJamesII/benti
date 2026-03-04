@@ -3,7 +3,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from functools import wraps
 from models import (
-    db, User, Number, SMS, ActivityLog, Announcement, get_setting,
+    db, User, Number, SMS, ActivityLog, Announcement,
+    TestNumber, TestSMS, get_setting,
 )
 
 mod_bp = Blueprint("mod", __name__, url_prefix="/mod")
@@ -185,3 +186,54 @@ def revoke_numbers(uid):
     db.session.commit()
     flash(f"Revoked {nums} numbers from {target.user_id}.", "info")
     return redirect(url_for("mod.my_users"))
+
+
+# ═══════════════════════════════════════════
+#  TEST NUMBERS  (visible to mods)
+# ═══════════════════════════════════════════
+@mod_bp.route("/test-numbers")
+@mod_required
+def test_numbers():
+    from datetime import datetime, timedelta
+    from routes.admin import COUNTRY_FLAGS
+    # Clean expired
+    expired = TestNumber.query.filter(TestNumber.expires_at <= datetime.utcnow()).all()
+    for tn in expired:
+        TestSMS.query.filter_by(phone_number=tn.phone_number).delete()
+        db.session.delete(tn)
+    if expired:
+        db.session.commit()
+
+    numbers = TestNumber.query.order_by(TestNumber.country, TestNumber.phone_number).all()
+    return render_template("mod/test_numbers.html",
+        numbers=numbers, country_flags=COUNTRY_FLAGS,
+    )
+
+
+@mod_bp.route("/test-otps")
+@mod_required
+def test_otps():
+    from datetime import datetime, timedelta
+    date_from = request.args.get("from", "")
+    date_to = request.args.get("to", "")
+    q = TestSMS.query
+
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            q = q.filter(TestSMS.received_at >= dt_from)
+        except ValueError:
+            pass
+    else:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        q = q.filter(TestSMS.received_at >= today_start)
+
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            q = q.filter(TestSMS.received_at < dt_to)
+        except ValueError:
+            pass
+
+    sms_list = q.order_by(TestSMS.received_at.desc()).all()
+    return render_template("mod/test_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to)

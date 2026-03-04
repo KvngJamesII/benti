@@ -160,6 +160,59 @@ class ActivityLog(db.Model):
 
 
 # ═══════════════════════════════════════════
+#  TEST NUMBER  (visible to all users/mods, expires after 23h)
+# ═══════════════════════════════════════════
+class TestNumber(db.Model):
+    __tablename__ = "test_numbers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    phone_number = db.Column(db.String(30), unique=True, nullable=False)
+    country = db.Column(db.String(100), nullable=False)
+    filename = db.Column(db.String(256), nullable=True)  # source file name
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
+
+    @property
+    def is_expired(self):
+        return datetime.utcnow() >= self.expires_at
+
+
+# ═══════════════════════════════════════════
+#  TEST SMS  (OTPs for test numbers – message is censored)
+# ═══════════════════════════════════════════
+class TestSMS(db.Model):
+    __tablename__ = "test_sms_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    external_id = db.Column(db.String(300), unique=True, nullable=False)
+    phone_number = db.Column(db.String(30), nullable=False)
+    country = db.Column(db.String(100))
+    service = db.Column(db.String(100))
+    otp_code = db.Column(db.String(50))
+    message = db.Column(db.Text)  # stored full, displayed as asterisks
+    rate = db.Column(db.Float, default=0.0)
+    received_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def censored_message(self):
+        """Return the message with content replaced by asterisks."""
+        if not self.message:
+            return ""
+        # Keep first 5 chars, replace rest with asterisks
+        words = self.message.split()
+        censored = []
+        for w in words:
+            if len(w) <= 2:
+                censored.append("*" * len(w))
+            else:
+                censored.append(w[0] + "*" * (len(w) - 2) + w[-1])
+        return " ".join(censored)
+
+
+# ═══════════════════════════════════════════
 #  HELPERS
 # ═══════════════════════════════════════════
 def get_setting(key, default=None):

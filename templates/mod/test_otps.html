@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}My OTPs – Eden SMS{% endblock %}
+{% block title %}Test OTPs – Eden SMS{% endblock %}
 
 {% block content %}
-<h4 class="mb-4"><i class="bi bi-chat-dots text-eden"></i> My OTPs</h4>
+<h4 class="mb-4"><i class="bi bi-chat-square-dots text-eden"></i> Test OTPs</h4>
 
 {# Date range filter #}
 <div class="card eden-card mb-4">
@@ -13,7 +13,7 @@
             <label class="form-label mb-0 me-1 ms-2">To:</label>
             <input type="date" class="form-control form-control-sm" name="to" value="{{ date_to }}" style="max-width: 170px;">
             <button type="submit" class="btn btn-sm btn-eden ms-2">Filter</button>
-            <a href="{{ url_for('user.my_otps') }}" class="btn btn-sm btn-outline-secondary">Today</a>
+            <a href="{{ url_for('mod.test_otps') }}" class="btn btn-sm btn-outline-secondary">Today</a>
         </form>
     </div>
 </div>
@@ -21,10 +21,10 @@
 <div class="card eden-card">
     <div class="card-header d-flex justify-content-between">
         <span>
-            {% if date_from and date_to %}OTPs from {{ date_from }} to {{ date_to }}
-            {% elif date_from %}OTPs from {{ date_from }}
-            {% elif date_to %}OTPs up to {{ date_to }}
-            {% else %}Today's OTPs{% endif %}
+            {% if date_from and date_to %}Test OTPs from {{ date_from }} to {{ date_to }}
+            {% elif date_from %}Test OTPs from {{ date_from }}
+            {% elif date_to %}Test OTPs up to {{ date_to }}
+            {% else %}Today's Test OTPs{% endif %}
         </span>
         <span class="badge bg-eden">{{ sms_list|length }} messages</span>
     </div>
@@ -36,8 +36,8 @@
                         <th>Service</th>
                         <th>Range</th>
                         <th>Number</th>
-                        <th>Payment</th>
                         <th>Message</th>
+                        <th>Time</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -46,15 +46,15 @@
                     <td><strong>{{ sms.service }}</strong></td>
                     <td>{{ sms.country }}</td>
                     <td><code>{{ sms.phone_number }}</code></td>
-                    <td class="text-eden">${{ '%.4f'|format(sms.rate) }}</td>
                     <td class="msg-cell">
-                        <div class="msg-wrap">{{ sms.message }}</div>
+                        <div class="msg-wrap text-muted">{{ sms.censored_message }}</div>
                     </td>
+                    <td>{{ sms.received_at.strftime('%H:%M') if sms.received_at else '-' }}</td>
                 </tr>
                 {% else %}
                 <tr><td colspan="5" class="text-muted text-center py-4">
                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                    No OTPs received {% if date_from %}for this date range{% else %}today{% endif %}
+                    No test OTPs received {% if date_from %}for this date range{% else %}today{% endif %}
                 </td></tr>
                 {% endfor %}
                 </tbody>

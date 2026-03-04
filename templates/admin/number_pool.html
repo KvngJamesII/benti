@@ -77,22 +77,31 @@
 
 {# Numbers table #}
 <div class="card eden-card">
-    <div class="card-header">Numbers (showing up to 500)</div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Numbers (showing up to 500)</span>
+        <button type="submit" form="bulkDeleteForm" class="btn btn-danger btn-sm" onclick="return confirm('Delete all selected numbers and their associated SMS? This cannot be undone.')">
+            <i class="bi bi-trash"></i> Delete Selected
+        </button>
+    </div>
     <div class="card-body p-0">
+        <form id="bulkDeleteForm" method="POST" action="{{ url_for('admin.delete_numbers_bulk') }}">
         <div class="table-responsive">
             <table class="table table-dark table-hover mb-0">
                 <thead>
                     <tr>
+                        <th style="width: 40px;"><input type="checkbox" id="selectAll" title="Select all"></th>
                         <th>Number</th>
                         <th>Country</th>
                         <th>Allocated To</th>
                         <th>Allocated By</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                 {% for n in numbers %}
                 <tr>
+                    <td><input type="checkbox" name="number_ids" value="{{ n.id }}" class="number-checkbox"></td>
                     <td><code>{{ n.phone_number }}</code></td>
                     <td>{{ country_flags.get(n.country, '') }} {{ n.country }}</td>
                     <td>{{ n.owner.user_id if n.owner else '<span class="text-muted">Available</span>'|safe }}</td>
@@ -104,13 +113,37 @@
                             <span class="badge bg-success">Available</span>
                         {% endif %}
                     </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin.delete_number', nid=n.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-danger btn-xs" title="Delete number"
+                                    onclick="return confirm('Delete {{ n.phone_number }}? This will also remove all associated SMS.')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" class="text-muted text-center py-4">No numbers found</td></tr>
+                <tr><td colspan="7" class="text-muted text-center py-4">No numbers found</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
+        </form>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('selectAll');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('.number-checkbox').forEach(cb => {
+                cb.checked = selectAll.checked;
+            });
+        });
+    }
+});
+</script>
 {% endblock %}
