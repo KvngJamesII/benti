@@ -1526,10 +1526,10 @@ def live_sms():
 
 
 # ═══════════════════════════════════════════
-#  API TOKEN MANAGEMENT  (super_admin only)
+#  API TOKEN MANAGEMENT
 # ═══════════════════════════════════════════
 @admin_bp.route("/api-tokens")
-@super_admin_required
+@admin_required
 def api_tokens():
     tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
     users = User.query.filter_by(role="user").order_by(User.user_id).all()
@@ -1537,7 +1537,7 @@ def api_tokens():
 
 
 @admin_bp.route("/api-tokens/create", methods=["POST"])
-@super_admin_required
+@admin_required
 def create_api_token():
     user_id = request.form.get("user_id", type=int)
     label = request.form.get("label", "").strip() or "Default"
@@ -1553,7 +1553,7 @@ def create_api_token():
 
 
 @admin_bp.route("/api-tokens/<int:tid>/revoke", methods=["POST"])
-@super_admin_required
+@admin_required
 def revoke_api_token(tid):
     token = ApiToken.query.get_or_404(tid)
     token.is_active = False
@@ -1563,7 +1563,7 @@ def revoke_api_token(tid):
 
 
 @admin_bp.route("/api-tokens/<int:tid>/activate", methods=["POST"])
-@super_admin_required
+@admin_required
 def activate_api_token(tid):
     token = ApiToken.query.get_or_404(tid)
     token.is_active = True
@@ -1573,7 +1573,7 @@ def activate_api_token(tid):
 
 
 @admin_bp.route("/api-tokens/<int:tid>/delete", methods=["POST"])
-@super_admin_required
+@admin_required
 def delete_api_token(tid):
     token = ApiToken.query.get_or_404(tid)
     uid = token.user.user_id

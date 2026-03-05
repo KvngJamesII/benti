@@ -68,11 +68,9 @@
                 <a href="{{ url_for('admin.otp_fetcher') }}" class="sidebar-link {% if request.endpoint in ['admin.otp_fetcher', 'admin.otp_fetcher_test'] %}active{% endif %}">
                     <i class="bi bi-cloud-download"></i> OTP Fetcher
                 </a>
-                {% if current_user.role == 'super_admin' %}
                 <a href="{{ url_for('admin.api_tokens') }}" class="sidebar-link {% if request.endpoint in ['admin.api_tokens', 'admin.create_api_token'] %}active{% endif %}">
                     <i class="bi bi-key"></i> API Tokens
                 </a>
-                {% endif %}
 
             {% elif current_user.role == 'mod' %}
                 <a href="{{ url_for('mod.dashboard') }}" class="sidebar-link {% if request.endpoint == 'mod.dashboard' %}active{% endif %}">
