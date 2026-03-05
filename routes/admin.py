@@ -415,6 +415,11 @@ def user_detail(uid):
         SMS.received_at.desc()
     ).paginate(page=sms_page, per_page=20, error_out=False)
 
+    # Apply country detection to SMS items
+    for sms in sms_pg.items:
+        detected = detect_country_from_phone(sms.phone_number)
+        sms._detected_country = detected if detected else (sms.country or "Unknown")
+
     # SMS per day for chart (last 14 days)
     from sqlalchemy import func
     fourteen_days_ago = datetime.utcnow() - timedelta(days=14)

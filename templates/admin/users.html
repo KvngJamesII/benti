@@ -146,7 +146,7 @@
                         {% elif u.role == 'mod' %}<span class="badge bg-info">mod</span>
                         {% else %}<span class="badge bg-secondary">user</span>{% endif %}
                     </td>
-                    <td>{% if u.num_count > 0 %}<span class="badge bg-warning">{{ u.num_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
+                    <td>{% if u.num_count > 0 %}<span class="badge bg-info">{{ u.num_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
                     <td>{% if u.sms_today > 0 %}<span class="badge bg-success">{{ u.sms_today }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
                     <td>{% if u.total_sms > 0 %}<span class="text-info">{{ u.total_sms }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
                     <td><span class="{% if u.balance > 0 %}text-success{% else %}text-muted{% endif %}">${{ '%.4f'|format(u.balance) }}</span></td>
@@ -202,7 +202,7 @@
             <div class="row g-1 mb-2 text-center">
                 <div class="col-3">
                     <small class="text-muted d-block">Numbers</small>
-                    {% if u.num_count > 0 %}<span class="badge bg-warning">{{ u.num_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}
+                    {% if u.num_count > 0 %}<span class="badge bg-info">{{ u.num_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}
                 </div>
                 <div class="col-3">
                     <small class="text-muted d-block">SMS Today</small>

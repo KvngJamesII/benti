@@ -140,7 +140,7 @@
                 <tr>
                     <td>{{ sms.service }}</td>
                     <td><code>{{ sms.phone_number }}</code></td>
-                    <td>{{ country_flags.get(sms.country, '🏳️') }} {{ sms.country }}</td>
+                    <td>{{ country_flags.get(sms._detected_country, '🏳️') }} {{ sms._detected_country }}</td>
                     <td class="msg-cell"><div class="msg-wrap">{{ sms.censored_message }}</div></td>
                     <td class="text-success">${{ '%.4f'|format(sms.rate) }}</td>
                     <td>{{ sms.received_at.strftime('%Y-%m-%d %H:%M') if sms.received_at else '-' }}</td>
