@@ -842,6 +842,14 @@ def sms_stats():
             pass
     sms_list = q.order_by(SMS.received_at.desc()).limit(500).all()
 
+    # Apply phone-prefix country detection to fix "Unknown" entries
+    for sms in sms_list:
+        detected = detect_country_from_phone(sms.phone_number)
+        if detected:
+            sms._detected_country = detected
+        else:
+            sms._detected_country = sms.country or "Unknown"
+
     # Stats
     total_all = SMS.query.count()
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -851,8 +859,14 @@ def sms_stats():
     from sqlalchemy import func
     service_stats = db.session.query(SMS.service, func.count(SMS.id)).group_by(SMS.service).order_by(func.count(SMS.id).desc()).all()
 
-    # Per-country breakdown
-    country_stats = db.session.query(SMS.country, func.count(SMS.id)).group_by(SMS.country).order_by(func.count(SMS.id).desc()).all()
+    # Per-country breakdown — re-aggregate using detected countries
+    country_map = {}
+    all_sms_for_countries = SMS.query.all()
+    for sms in all_sms_for_countries:
+        detected = detect_country_from_phone(sms.phone_number)
+        ctry = detected if detected else (sms.country or "Unknown")
+        country_map[ctry] = country_map.get(ctry, 0) + 1
+    country_stats = sorted(country_map.items(), key=lambda x: x[1], reverse=True)
 
     # Daily volume chart (last 30 days)
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)

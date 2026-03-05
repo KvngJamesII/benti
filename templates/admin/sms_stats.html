@@ -136,7 +136,7 @@
                 {% for sms in sms_list %}
                 <tr>
                     <td>{{ sms.service }}</td>
-                    <td>{{ country_flags.get(sms.country, '🏳️') }} {{ sms.country }}</td>
+                    <td>{{ country_flags.get(sms._detected_country, '🏳️') }} {{ sms._detected_country }}</td>
                     <td><code>{{ sms.phone_number }}</code></td>
                     <td>${{ '%.4f'|format(sms.rate) }}</td>
                     <td class="msg-cell">
