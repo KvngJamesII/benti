@@ -283,7 +283,8 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">From User</label>
-                        <select name="from_user_id" class="form-select" required>
+                        <input type="text" class="form-control form-control-sm mb-1" id="searchFrom" placeholder="Search user..." autocomplete="off">
+                        <select name="from_user_id" id="selectFrom" class="form-select" required>
                             <option value="">Select source user...</option>
                             {% for u in users %}
                             {% if u.num_count > 0 %}
@@ -294,7 +295,8 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">To User</label>
-                        <select name="to_user_id" class="form-select" required>
+                        <input type="text" class="form-control form-control-sm mb-1" id="searchTo" placeholder="Search user..." autocomplete="off">
+                        <select name="to_user_id" id="selectTo" class="form-select" required>
                             <option value="">Select destination user...</option>
                             {% for u in users %}
                             <option value="{{ u.id }}">{{ u.user_id }}</option>
@@ -368,5 +370,29 @@ function openResetModal(uid, userId) {
     document.getElementById('resetUserLabel').textContent = userId;
     new bootstrap.Modal(document.getElementById('resetModal')).show();
 }
+
+// Searchable select filtering for transfer modal
+function setupSelectSearch(inputId, selectId) {
+    var input = document.getElementById(inputId);
+    var select = document.getElementById(selectId);
+    if (!input || !select) return;
+    var options = Array.from(select.options).map(function(o) {
+        return { value: o.value, text: o.textContent };
+    });
+    input.addEventListener('input', function() {
+        var q = this.value.toLowerCase();
+        select.innerHTML = '';
+        options.forEach(function(o) {
+            if (!o.value || o.text.toLowerCase().indexOf(q) !== -1) {
+                var opt = document.createElement('option');
+                opt.value = o.value;
+                opt.textContent = o.text;
+                select.appendChild(opt);
+            }
+        });
+    });
+}
+setupSelectSearch('searchFrom', 'selectFrom');
+setupSelectSearch('searchTo', 'selectTo');
 </script>
 {% endblock %}

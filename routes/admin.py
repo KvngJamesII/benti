@@ -777,6 +777,22 @@ def revoke_numbers_bulk():
     return redirect(url_for("admin.number_pool"))
 
 
+@admin_bp.route("/revoke-all-numbers", methods=["POST"])
+@admin_required
+def revoke_all_numbers():
+    """Revoke ALL allocated numbers from ALL users."""
+    count = Number.query.filter(Number.allocated_to_id.isnot(None)).update(
+        {"allocated_to_id": None, "allocated_by_id": None, "allocated_at": None}
+    )
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="revoke_all_numbers",
+        details=f"Revoked all {count} allocated numbers from all users.",
+    ))
+    db.session.commit()
+    flash(f"Revoked {count} numbers from all users.", "info")
+    return redirect(url_for("admin.number_pool"))
+
+
 @admin_bp.route("/set-auto-revoke", methods=["POST"])
 @admin_required
 def set_auto_revoke():
