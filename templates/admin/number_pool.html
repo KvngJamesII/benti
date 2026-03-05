@@ -78,13 +78,24 @@
 
 {# Country filter #}
 <div class="mb-3">
+    <label class="form-label text-muted small mb-1">Country</label>
     <div class="btn-group btn-group-sm flex-wrap">
-        <a href="{{ url_for('admin.number_pool', country='all') }}" class="btn {% if country_filter == 'all' %}btn-eden{% else %}btn-outline-secondary{% endif %}">All</a>
+        <a href="{{ url_for('admin.number_pool', country='all', status=status_filter) }}" class="btn {% if country_filter == 'all' %}btn-eden{% else %}btn-outline-secondary{% endif %}">All</a>
         {% for c in countries %}
-        <a href="{{ url_for('admin.number_pool', country=c) }}" class="btn {% if country_filter == c %}btn-eden{% else %}btn-outline-secondary{% endif %}">
+        <a href="{{ url_for('admin.number_pool', country=c, status=status_filter) }}" class="btn {% if country_filter == c %}btn-eden{% else %}btn-outline-secondary{% endif %}">
             {{ country_flags.get(c, '') }} {{ c }}
         </a>
         {% endfor %}
+    </div>
+</div>
+
+{# Status filter #}
+<div class="mb-3">
+    <label class="form-label text-muted small mb-1">Status</label>
+    <div class="btn-group btn-group-sm">
+        <a href="{{ url_for('admin.number_pool', country=country_filter, status='all') }}" class="btn {% if status_filter == 'all' %}btn-eden{% else %}btn-outline-secondary{% endif %}">All</a>
+        <a href="{{ url_for('admin.number_pool', country=country_filter, status='available') }}" class="btn {% if status_filter == 'available' %}btn-success{% else %}btn-outline-secondary{% endif %}">Available</a>
+        <a href="{{ url_for('admin.number_pool', country=country_filter, status='allocated') }}" class="btn {% if status_filter == 'allocated' %}btn-warning{% else %}btn-outline-secondary{% endif %}">Allocated</a>
     </div>
 </div>
 
@@ -123,7 +134,7 @@
 {# Numbers table #}
 <div class="card eden-card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Numbers (showing up to 500)</span>
+        <span>Numbers ({{ numbers_pg.total }}{% if country_filter != 'all' %} in {{ country_filter }}{% endif %}{% if status_filter != 'all' %} — {{ status_filter }}{% endif %})</span>
         <button type="submit" form="bulkDeleteForm" class="btn btn-danger btn-sm" onclick="return confirm('Delete all selected numbers and their associated SMS? This cannot be undone.')">
             <i class="bi bi-trash"></i> Delete Selected
         </button>
@@ -175,6 +186,9 @@
         </div>
         </form>
     </div>
+    {% with pagination=numbers_pg %}
+    {% include 'pagination.html' %}
+    {% endwith %}
 </div>
 
 </div>{# end numbersPane #}

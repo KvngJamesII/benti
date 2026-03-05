@@ -460,10 +460,19 @@ def user_detail(uid):
 @admin_required
 def number_pool():
     country_filter = request.args.get("country", "all")
+    status_filter = request.args.get("status", "all")   # all | available | allocated
+    page = request.args.get("page", 1, type=int)
+    per_page = 50
+
     q = Number.query
     if country_filter != "all":
         q = q.filter_by(country=country_filter)
-    numbers = q.order_by(Number.created_at.desc()).limit(500).all()
+    if status_filter == "available":
+        q = q.filter(Number.allocated_to_id.is_(None))
+    elif status_filter == "allocated":
+        q = q.filter(Number.allocated_to_id.isnot(None))
+
+    numbers_pg = q.order_by(Number.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     countries = db.session.query(Number.country).distinct().all()
     countries = sorted([c[0] for c in countries])
     batches = NumberBatch.query.order_by(NumberBatch.created_at.desc()).limit(20).all()
@@ -525,8 +534,10 @@ def number_pool():
         })
 
     return render_template("admin/number_pool.html",
-        numbers=numbers, countries=countries,
-        country_filter=country_filter, batches=batches,
+        numbers=numbers_pg.items, numbers_pg=numbers_pg,
+        countries=countries,
+        country_filter=country_filter, status_filter=status_filter,
+        batches=batches,
         total=total, allocated=allocated, available=available,
         country_flags=COUNTRY_FLAGS,
         allocated_users=allocated_users,
