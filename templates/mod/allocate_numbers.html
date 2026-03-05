@@ -10,7 +10,8 @@
             <div class="card-body">
                 <form method="POST">
                     <div class="mb-3">
-                        <label for="user_id" class="form-label">Select User</label>
+                        <label for="userSearch" class="form-label">Select User</label>
+                        <input type="text" class="form-control mb-1" id="userSearch" placeholder="Search user ID..." autocomplete="off">
                         <select class="form-select" id="user_id" name="user_id" required>
                             <option value="" disabled selected>Choose a user...</option>
                             {% for u in users %}
@@ -67,4 +68,42 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const search = document.getElementById('userSearch');
+    const select = document.getElementById('user_id');
+    if (!search || !select) return;
+
+    const allOptions = Array.from(select.options).slice(1);
+
+    search.addEventListener('input', function() {
+        const q = this.value.toLowerCase().trim();
+        const currentVal = select.value;
+
+        select.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        placeholder.textContent = 'Choose a user...';
+        select.appendChild(placeholder);
+
+        let matched = 0;
+        allOptions.forEach(opt => {
+            if (!q || opt.textContent.toLowerCase().includes(q)) {
+                const clone = opt.cloneNode(true);
+                if (clone.value === currentVal) clone.selected = true;
+                select.appendChild(clone);
+                matched++;
+            }
+        });
+
+        if (matched === 0 || !select.value) {
+            placeholder.selected = true;
+        }
+    });
+});
+</script>
 {% endblock %}
