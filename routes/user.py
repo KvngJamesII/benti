@@ -146,7 +146,14 @@ def my_otps():
             pass
 
     sms_list = q.order_by(SMS.received_at.desc()).all()
-    return render_template("user/my_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to)
+
+    from routes.admin import COUNTRY_FLAGS
+    from models import detect_country_from_phone
+    for sms in sms_list:
+        detected = detect_country_from_phone(sms.phone_number)
+        sms._detected_country = detected if detected else (sms.country or "Unknown")
+
+    return render_template("user/my_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to, country_flags=COUNTRY_FLAGS)
 
 
 # ═══════════════════════════════════════════
