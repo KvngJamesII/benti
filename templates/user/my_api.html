@@ -37,6 +37,73 @@
 </div>
 {% endif %}
 
+{# ═══ API TESTER ═══ #}
+<div class="card eden-card mb-4">
+    <div class="card-header"><i class="bi bi-terminal me-1"></i> API Tester</div>
+    <div class="card-body">
+        <div class="row g-2 mb-3">
+            <div class="col-md-5">
+                <label class="form-label small text-muted">API Token</label>
+                <input type="text" class="form-control form-control-sm bg-dark text-light font-monospace" id="testToken"
+                       placeholder="Paste your API token"
+                       {% if tokens %}value="{{ tokens[0].token }}"{% endif %}>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small text-muted">Endpoint</label>
+                <select class="form-select form-select-sm" id="testEndpoint">
+                    <option value="/api/v1/balance">GET /api/v1/balance</option>
+                    <option value="/api/v1/numbers">GET /api/v1/numbers</option>
+                    <option value="/api/v1/sms/latest" selected>GET /api/v1/sms/latest</option>
+                    <option value="/api/v1/sms/list">GET /api/v1/sms/list</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button class="btn btn-eden btn-sm w-100" id="testBtn" onclick="runApiTest()">
+                    <i class="bi bi-play-fill me-1"></i> Send Request
+                </button>
+            </div>
+        </div>
+
+        {# Optional filters — shown for sms endpoints #}
+        <div id="smsFilters" class="row g-2 mb-3">
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Service (optional)</label>
+                <input type="text" class="form-control form-control-sm bg-dark text-light" id="filterService" placeholder="e.g. Telegram">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Phone (optional)</label>
+                <input type="text" class="form-control form-control-sm bg-dark text-light" id="filterPhone" placeholder="e.g. 263784137580">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Limit (sms/list only)</label>
+                <input type="number" class="form-control form-control-sm bg-dark text-light" id="filterLimit" placeholder="20" min="1" max="100">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Page (sms/list only)</label>
+                <input type="number" class="form-control form-control-sm bg-dark text-light" id="filterPage" placeholder="1" min="1">
+            </div>
+        </div>
+
+        {# Request URL preview #}
+        <div class="mb-2">
+            <label class="form-label small text-muted mb-1">Request URL</label>
+            <div class="bg-dark border border-secondary rounded p-2">
+                <code class="small text-eden" id="requestUrl">—</code>
+            </div>
+        </div>
+
+        {# Response #}
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label small text-muted mb-0">Response</label>
+                <small id="responseStatus" class="text-muted"></small>
+            </div>
+            <pre class="bg-dark border border-secondary rounded p-3 mb-0" style="max-height:400px; overflow:auto; min-height:80px;">
+<code id="responseBody" class="small text-light">Click "Send Request" to test an endpoint…</code></pre>
+        </div>
+    </div>
+</div>
+
 {# ═══ API DOCS ═══ #}
 <div class="card eden-card">
     <div class="card-header"><i class="bi bi-book me-1"></i> API Documentation</div>
@@ -163,6 +230,84 @@ function copyToken(inputId, btn) {
         icon.className = 'bi bi-check-lg text-success';
         setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 1500);
     });
+}
+
+// ── API Tester ──
+const endpointSel = document.getElementById('testEndpoint');
+const smsFilters = document.getElementById('smsFilters');
+const requestUrl = document.getElementById('requestUrl');
+
+function updateFiltersVisibility() {
+    const ep = endpointSel.value;
+    smsFilters.style.display = ep.includes('/sms/') ? '' : 'none';
+    updateUrlPreview();
+}
+
+function buildUrl() {
+    const token = document.getElementById('testToken').value.trim();
+    const ep = endpointSel.value;
+    let params = [];
+    if (token) params.push('api_key=' + encodeURIComponent(token));
+
+    if (ep.includes('/sms/')) {
+        const svc = document.getElementById('filterService').value.trim();
+        const phone = document.getElementById('filterPhone').value.trim();
+        const limit = document.getElementById('filterLimit').value.trim();
+        const page = document.getElementById('filterPage').value.trim();
+        if (svc) params.push('service=' + encodeURIComponent(svc));
+        if (phone) params.push('phone=' + encodeURIComponent(phone));
+        if (limit) params.push('limit=' + encodeURIComponent(limit));
+        if (page) params.push('page=' + encodeURIComponent(page));
+    }
+
+    return ep + (params.length ? '?' + params.join('&') : '');
+}
+
+function updateUrlPreview() {
+    requestUrl.textContent = 'GET ' + window.location.origin + buildUrl();
+}
+
+endpointSel.addEventListener('change', updateFiltersVisibility);
+document.querySelectorAll('#testToken, #filterService, #filterPhone, #filterLimit, #filterPage').forEach(el => {
+    el.addEventListener('input', updateUrlPreview);
+});
+
+updateFiltersVisibility();
+
+async function runApiTest() {
+    const token = document.getElementById('testToken').value.trim();
+    if (!token) {
+        document.getElementById('responseBody').textContent = 'Error: Please enter an API token.';
+        return;
+    }
+
+    const btn = document.getElementById('testBtn');
+    const statusEl = document.getElementById('responseStatus');
+    const bodyEl = document.getElementById('responseBody');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Loading…';
+    statusEl.textContent = '';
+    bodyEl.textContent = 'Loading…';
+
+    const url = buildUrl();
+    updateUrlPreview();
+
+    try {
+        const start = performance.now();
+        const resp = await fetch(url);
+        const elapsed = Math.round(performance.now() - start);
+        const data = await resp.json();
+
+        statusEl.innerHTML = `<span class="${resp.ok ? 'text-success' : 'text-danger'}">${resp.status} ${resp.statusText}</span> · ${elapsed}ms`;
+        bodyEl.textContent = JSON.stringify(data, null, 2);
+    } catch (err) {
+        statusEl.innerHTML = '<span class="text-danger">Request failed</span>';
+        bodyEl.textContent = 'Error: ' + err.message;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Send Request';
+    }
 }
 </script>
 {% endblock %}
