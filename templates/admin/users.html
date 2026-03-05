@@ -5,31 +5,31 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4><i class="bi bi-people text-eden"></i> Users & Moderators</h4>
     <a href="{{ url_for('admin.create_account') }}" class="btn btn-eden btn-sm">
-        <i class="bi bi-person-plus"></i> Create Account
+        <i class="bi bi-person-plus"></i> Create
     </a>
 </div>
 
 {# ═══ STAT CARDS ═══ #}
-<div class="row g-3 mb-4">
-    <div class="col-md-3 col-6">
+<div class="row g-2 mb-4">
+    <div class="col-6 col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-primary"><i class="bi bi-people"></i></div>
             <div class="stat-info">
                 <div class="stat-value">{{ total_users_count }}</div>
-                <div class="stat-label">Total Users</div>
+                <div class="stat-label">Users</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="col-6 col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-info"><i class="bi bi-shield"></i></div>
             <div class="stat-info">
                 <div class="stat-value">{{ total_mods_count }}</div>
-                <div class="stat-label">Moderators</div>
+                <div class="stat-label">Mods</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="col-6 col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-warning"><i class="bi bi-phone-fill"></i></div>
             <div class="stat-info">
@@ -38,7 +38,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="col-6 col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-danger"><i class="bi bi-lock"></i></div>
             <div class="stat-info">
@@ -51,47 +51,51 @@
 
 {# ═══ FILTERS & SEARCH ═══ #}
 <div class="card eden-card mb-4">
-    <div class="card-body">
-        <form method="GET" class="d-flex gap-2 align-items-center flex-wrap">
-            {# Role filter #}
-            <div class="btn-group btn-group-sm">
-                <a href="{{ url_for('admin.users', role='all', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'all' %}btn-eden{% else %}btn-outline-secondary{% endif %}">All</a>
-                {% if is_super_admin %}
-                <a href="{{ url_for('admin.users', role='admin', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'admin' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Admins</a>
+    <div class="card-body py-2 px-3">
+        <form method="GET">
+            <div class="row g-2 align-items-center">
+                <div class="col-12 col-md-auto">
+                    <div class="btn-group btn-group-sm w-100">
+                        <a href="{{ url_for('admin.users', role='all', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'all' %}btn-eden{% else %}btn-outline-secondary{% endif %}">All</a>
+                        {% if is_super_admin %}
+                        <a href="{{ url_for('admin.users', role='admin', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'admin' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Admins</a>
+                        {% endif %}
+                        <a href="{{ url_for('admin.users', role='mod', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'mod' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Mods</a>
+                        <a href="{{ url_for('admin.users', role='user', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'user' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Users</a>
+                        <a href="{{ url_for('admin.users', role='banned', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'banned' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Banned</a>
+                    </div>
+                </div>
+                <div class="col-6 col-md-auto">
+                    <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="created" {% if sort_by == 'created' %}selected{% endif %}>Newest</option>
+                        <option value="numbers" {% if sort_by == 'numbers' %}selected{% endif %}>Most Numbers</option>
+                        <option value="sms" {% if sort_by == 'sms' %}selected{% endif %}>SMS Today</option>
+                        <option value="total_sms" {% if sort_by == 'total_sms' %}selected{% endif %}>Total SMS</option>
+                        <option value="balance" {% if sort_by == 'balance' %}selected{% endif %}>Balance</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-auto">
+                    <div class="input-group input-group-sm">
+                        <input type="text" name="q" class="form-control" placeholder="Search ID..." value="{{ search_q }}">
+                        <button type="submit" class="btn btn-eden">Search</button>
+                    </div>
+                </div>
+                <input type="hidden" name="role" value="{{ role_filter }}">
+                {% if search_q %}
+                <div class="col-auto">
+                    <a href="{{ url_for('admin.users', role=role_filter, sort=sort_by) }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+                </div>
                 {% endif %}
-                <a href="{{ url_for('admin.users', role='mod', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'mod' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Mods</a>
-                <a href="{{ url_for('admin.users', role='user', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'user' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Users</a>
-                <a href="{{ url_for('admin.users', role='banned', sort=sort_by, q=search_q) }}" class="btn {% if role_filter == 'banned' %}btn-eden{% else %}btn-outline-secondary{% endif %}">Banned</a>
             </div>
-
-            {# Sort dropdown #}
-            <select name="sort" class="form-select form-select-sm" style="max-width:180px;" onchange="this.form.submit()">
-                <option value="created" {% if sort_by == 'created' %}selected{% endif %}>Sort: Newest</option>
-                <option value="numbers" {% if sort_by == 'numbers' %}selected{% endif %}>Sort: Most Numbers</option>
-                <option value="sms" {% if sort_by == 'sms' %}selected{% endif %}>Sort: SMS Today</option>
-                <option value="total_sms" {% if sort_by == 'total_sms' %}selected{% endif %}>Sort: Total SMS</option>
-                <option value="balance" {% if sort_by == 'balance' %}selected{% endif %}>Sort: Highest Balance</option>
-            </select>
-
-            {# Keep current role filter when sorting #}
-            <input type="hidden" name="role" value="{{ role_filter }}">
-
-            {# Search #}
-            <input type="text" name="q" class="form-control form-control-sm" placeholder="Search User ID..." value="{{ search_q }}" style="max-width:180px;">
-            <button type="submit" class="btn btn-sm btn-eden"><i class="bi bi-search"></i></button>
-            {% if search_q %}
-            <a href="{{ url_for('admin.users', role=role_filter, sort=sort_by) }}" class="btn btn-sm btn-outline-secondary">Clear</a>
-            {% endif %}
         </form>
     </div>
 </div>
 
-{# ═══ USERS TABLE ═══ #}
-<div class="card eden-card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-people me-1"></i> Users</span>
-        <span class="badge bg-eden">{{ users|length }} shown</span>
-    </div>
+{# ═══ USERS LIST ═══ #}
+{# Desktop: table — Mobile: card list #}
+
+{# Desktop table (hidden on small screens) #}
+<div class="card eden-card d-none d-lg-block">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-dark table-hover mb-0">
@@ -99,104 +103,119 @@
                     <tr>
                         <th>User ID</th>
                         <th>Role</th>
-                        <th>Created By</th>
                         <th>Numbers</th>
                         <th>SMS Today</th>
                         <th>Total SMS</th>
                         <th>Balance</th>
                         <th>Status</th>
-                        <th>Created</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                 {% for u in users %}
                 <tr>
-                    <td><strong>{{ u.user_id }}</strong></td>
+                    <td><strong>{{ u.user_id }}</strong><br><small class="text-muted">by {{ u.created_by }}</small></td>
                     <td>
-                        {% if u.role == 'super_admin' %}
-                            <span class="badge bg-danger">super_admin</span>
-                        {% elif u.role == 'admin' %}
-                            <span class="badge bg-warning text-dark">admin</span>
-                        {% elif u.role == 'mod' %}
-                            <span class="badge bg-info">mod</span>
-                        {% else %}
-                            <span class="badge bg-secondary">user</span>
-                        {% endif %}
+                        {% if u.role == 'super_admin' %}<span class="badge bg-danger">super_admin</span>
+                        {% elif u.role == 'admin' %}<span class="badge bg-warning text-dark">admin</span>
+                        {% elif u.role == 'mod' %}<span class="badge bg-info">mod</span>
+                        {% else %}<span class="badge bg-secondary">user</span>{% endif %}
                     </td>
-                    <td><small class="text-muted">{{ u.created_by }}</small></td>
+                    <td>{% if u.num_count > 0 %}<span class="badge bg-warning">{{ u.num_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
+                    <td>{% if u.sms_today > 0 %}<span class="badge bg-success">{{ u.sms_today }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
+                    <td>{% if u.total_sms > 0 %}<span class="text-info">{{ u.total_sms }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
+                    <td><span class="{% if u.balance > 0 %}text-success{% else %}text-muted{% endif %}">${{ '%.4f'|format(u.balance) }}</span></td>
+                    <td>{% if u.is_banned %}<span class="badge bg-danger">Banned</span>{% else %}<span class="badge bg-success">Active</span>{% endif %}</td>
                     <td>
-                        {% if u.num_count > 0 %}
-                            <span class="badge bg-warning">{{ u.num_count }}</span>
-                        {% else %}
-                            <span class="text-muted">0</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if u.sms_today > 0 %}
-                            <span class="badge bg-success">{{ u.sms_today }}</span>
-                        {% else %}
-                            <span class="text-muted">0</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if u.total_sms > 0 %}
-                            <span class="text-info">{{ u.total_sms }}</span>
-                        {% else %}
-                            <span class="text-muted">0</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <span class="{% if u.balance > 0 %}text-success{% else %}text-muted{% endif %}">
-                            ${{ '%.4f'|format(u.balance) }}
-                        </span>
-                    </td>
-                    <td>
-                        {% if u.is_banned %}
-                            <span class="badge bg-danger">Banned</span>
-                        {% else %}
-                            <span class="badge bg-success">Active</span>
-                        {% endif %}
-                    </td>
-                    <td><small>{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '-' }}</small></td>
-                    <td class="text-nowrap">
-                        {# Ban / Unban #}
-                        {% if u.is_banned %}
-                            <a href="{{ url_for('admin.unban_user', uid=u.id) }}" class="btn btn-success btn-xs" title="Unban">
-                                <i class="bi bi-unlock"></i>
-                            </a>
-                        {% else %}
-                            <a href="{{ url_for('admin.ban_user', uid=u.id) }}" class="btn btn-warning btn-xs" title="Ban">
-                                <i class="bi bi-lock"></i>
-                            </a>
-                        {% endif %}
-
-                        {# Revoke numbers #}
-                        {% if u.num_count > 0 %}
-                        <form method="POST" action="{{ url_for('admin.revoke_numbers', uid=u.id) }}" class="d-inline">
-                            <button type="submit" class="btn btn-outline-danger btn-xs" title="Revoke all {{ u.num_count }} numbers"
-                                    onclick="return confirm('Revoke all {{ u.num_count }} numbers from {{ u.user_id }}?')">
-                                <i class="bi bi-arrow-counterclockwise"></i>
-                            </button>
-                        </form>
-                        {% endif %}
-
-                        {# Delete user #}
-                        <a href="{{ url_for('admin.delete_user', uid=u.id) }}" class="btn btn-danger btn-xs" title="Delete"
-                           onclick="return confirm('Delete {{ u.user_id }}? This cannot be undone.')">
-                            <i class="bi bi-trash"></i>
-                        </a>
+                        <div class="d-flex gap-1 flex-wrap">
+                            {% if u.is_banned %}
+                                <a href="{{ url_for('admin.unban_user', uid=u.id) }}" class="btn btn-success btn-xs">Unban</a>
+                            {% else %}
+                                <a href="{{ url_for('admin.ban_user', uid=u.id) }}" class="btn btn-warning btn-xs text-dark"
+                                   onclick="return confirm('Ban {{ u.user_id }}?')">Ban</a>
+                            {% endif %}
+                            {% if u.num_count > 0 %}
+                            <form method="POST" action="{{ url_for('admin.revoke_numbers', uid=u.id) }}" class="d-inline">
+                                <button type="submit" class="btn btn-outline-danger btn-xs"
+                                        onclick="return confirm('Revoke all {{ u.num_count }} numbers from {{ u.user_id }}?')">Revoke</button>
+                            </form>
+                            {% endif %}
+                            <a href="{{ url_for('admin.delete_user', uid=u.id) }}" class="btn btn-danger btn-xs"
+                               onclick="return confirm('Delete {{ u.user_id }}? This cannot be undone.')">Delete</a>
+                        </div>
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="10" class="text-muted text-center py-4">
-                    <i class="bi bi-people fs-1 d-block mb-2"></i>
-                    No users found{% if search_q %} matching "{{ search_q }}"{% endif %}
-                </td></tr>
+                <tr><td colspan="8" class="text-muted text-center py-4">No users found{% if search_q %} matching "{{ search_q }}"{% endif %}</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
+</div>
+
+{# Mobile card list (visible only on small screens) #}
+<div class="d-lg-none">
+    {% for u in users %}
+    <div class="card eden-card mb-2">
+        <div class="card-body py-3 px-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <strong class="fs-6">{{ u.user_id }}</strong>
+                    {% if u.role == 'super_admin' %}<span class="badge bg-danger ms-1">super_admin</span>
+                    {% elif u.role == 'admin' %}<span class="badge bg-warning text-dark ms-1">admin</span>
+                    {% elif u.role == 'mod' %}<span class="badge bg-info ms-1">mod</span>
+                    {% else %}<span class="badge bg-secondary ms-1">user</span>{% endif %}
+                </div>
+                {% if u.is_banned %}<span class="badge bg-danger">Banned</span>{% else %}<span class="badge bg-success">Active</span>{% endif %}
+            </div>
+
+            <div class="row g-1 mb-2 text-center">
+                <div class="col-3">
+                    <small class="text-muted d-block">Numbers</small>
+                    {% if u.num_count > 0 %}<span class="badge bg-warning">{{ u.num_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}
+                </div>
+                <div class="col-3">
+                    <small class="text-muted d-block">SMS Today</small>
+                    {% if u.sms_today > 0 %}<span class="badge bg-success">{{ u.sms_today }}</span>{% else %}<span class="text-muted">0</span>{% endif %}
+                </div>
+                <div class="col-3">
+                    <small class="text-muted d-block">Total SMS</small>
+                    {% if u.total_sms > 0 %}<span class="text-info">{{ u.total_sms }}</span>{% else %}<span class="text-muted">0</span>{% endif %}
+                </div>
+                <div class="col-3">
+                    <small class="text-muted d-block">Balance</small>
+                    <span class="{% if u.balance > 0 %}text-success{% else %}text-muted{% endif %}">${{ '%.2f'|format(u.balance) }}</span>
+                </div>
+            </div>
+
+            <small class="text-muted d-block mb-2">Created by {{ u.created_by }} · {{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '-' }}</small>
+
+            <div class="d-flex gap-2 flex-wrap">
+                {% if u.is_banned %}
+                    <a href="{{ url_for('admin.unban_user', uid=u.id) }}" class="btn btn-success btn-sm">Unban</a>
+                {% else %}
+                    <a href="{{ url_for('admin.ban_user', uid=u.id) }}" class="btn btn-warning btn-sm text-dark"
+                       onclick="return confirm('Ban {{ u.user_id }}?')">Ban</a>
+                {% endif %}
+                {% if u.num_count > 0 %}
+                <form method="POST" action="{{ url_for('admin.revoke_numbers', uid=u.id) }}" class="d-inline">
+                    <button type="submit" class="btn btn-outline-danger btn-sm"
+                            onclick="return confirm('Revoke all {{ u.num_count }} numbers from {{ u.user_id }}?')">Revoke Numbers</button>
+                </form>
+                {% endif %}
+                <a href="{{ url_for('admin.delete_user', uid=u.id) }}" class="btn btn-danger btn-sm"
+                   onclick="return confirm('Delete {{ u.user_id }}? This cannot be undone.')">Delete</a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card eden-card">
+        <div class="card-body text-center text-muted py-4">
+            <i class="bi bi-people fs-1 d-block mb-2"></i>
+            No users found{% if search_q %} matching "{{ search_q }}"{% endif %}
+        </div>
+    </div>
+    {% endfor %}
 </div>
 {% endblock %}
