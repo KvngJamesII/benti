@@ -6,6 +6,7 @@ from functools import wraps
 from models import (
     db, User, Number, NumberBatch, SMS, Withdrawal, Setting,
     ActivityLog, Announcement, TestNumber, TestSMS, get_setting, set_setting,
+    AutoRevokeSchedule,
 )
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -235,11 +236,65 @@ def number_pool():
     allocated = Number.query.filter(Number.allocated_to_id.isnot(None)).count()
     available = total - allocated
 
+    # Users with allocated numbers (for Users tab)
+    allocated_users_raw = (
+        db.session.query(
+            User.id, User.user_id, User.role,
+            db.func.count(Number.id).label("num_count"),
+            db.func.min(Number.allocated_at).label("first_allocated"),
+        )
+        .join(Number, Number.allocated_to_id == User.id)
+        .group_by(User.id)
+        .order_by(db.func.count(Number.id).desc())
+        .all()
+    )
+    allocated_users = []
+    for row in allocated_users_raw:
+        allocated_users.append({
+            "id": row.id,
+            "user_id": row.user_id,
+            "role": row.role,
+            "num_count": row.num_count,
+            "first_allocated": row.first_allocated,
+        })
+
+    # Active auto-revoke schedule
+    active_auto_revoke = AutoRevokeSchedule.query.filter_by(is_executed=False).order_by(
+        AutoRevokeSchedule.revoke_at.asc()
+    ).first()
+
+    # All users with balance & number count (for All Users tab)
+    all_users_raw = (
+        db.session.query(
+            User.id, User.user_id, User.role, User.balance, User.is_banned,
+            User.created_at,
+            db.func.count(Number.id).label("num_count"),
+        )
+        .outerjoin(Number, Number.allocated_to_id == User.id)
+        .group_by(User.id)
+        .order_by(User.created_at.desc())
+        .all()
+    )
+    all_users_list = []
+    for row in all_users_raw:
+        all_users_list.append({
+            "id": row.id,
+            "user_id": row.user_id,
+            "role": row.role,
+            "balance": row.balance or 0.0,
+            "is_banned": row.is_banned,
+            "created_at": row.created_at,
+            "num_count": row.num_count,
+        })
+
     return render_template("admin/number_pool.html",
         numbers=numbers, countries=countries,
         country_filter=country_filter, batches=batches,
         total=total, allocated=allocated, available=available,
         country_flags=COUNTRY_FLAGS,
+        allocated_users=allocated_users,
+        active_auto_revoke=active_auto_revoke,
+        all_users_list=all_users_list,
     )
 
 
@@ -464,7 +519,82 @@ def revoke_numbers(uid):
     ))
     db.session.commit()
     flash(f"Revoked {nums} numbers from {target.user_id}.", "info")
+    referrer = request.form.get("referrer", "")
+    if referrer == "number_pool":
+        return redirect(url_for("admin.number_pool"))
     return redirect(url_for("admin.users"))
+
+
+@admin_bp.route("/revoke-numbers-bulk", methods=["POST"])
+@admin_required
+def revoke_numbers_bulk():
+    """Revoke numbers from multiple selected users at once."""
+    user_ids = request.form.getlist("user_ids")
+    if not user_ids:
+        flash("No users selected.", "warning")
+        return redirect(url_for("admin.number_pool"))
+
+    total_revoked = 0
+    user_names = []
+    for uid in user_ids:
+        uid = int(uid)
+        user = User.query.get(uid)
+        if user:
+            nums = Number.query.filter_by(allocated_to_id=uid).update(
+                {"allocated_to_id": None, "allocated_by_id": None, "allocated_at": None}
+            )
+            total_revoked += nums
+            user_names.append(user.user_id)
+
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="bulk_revoke_numbers",
+        details=f"Revoked {total_revoked} numbers from {len(user_names)} users: {', '.join(user_names)}",
+    ))
+    db.session.commit()
+    flash(f"Revoked {total_revoked} numbers from {len(user_names)} users.", "info")
+    return redirect(url_for("admin.number_pool"))
+
+
+@admin_bp.route("/set-auto-revoke", methods=["POST"])
+@admin_required
+def set_auto_revoke():
+    """Schedule an auto-revoke for all users after N hours."""
+    hours = request.form.get("hours", type=float)
+    if not hours or hours <= 0:
+        flash("Please enter a valid number of hours.", "danger")
+        return redirect(url_for("admin.number_pool"))
+
+    revoke_at = datetime.utcnow() + timedelta(hours=hours)
+
+    # Cancel any existing pending auto-revoke
+    AutoRevokeSchedule.query.filter_by(is_executed=False).delete()
+
+    schedule = AutoRevokeSchedule(
+        created_by_id=current_user.id,
+        revoke_at=revoke_at,
+    )
+    db.session.add(schedule)
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="set_auto_revoke",
+        details=f"Scheduled auto-revoke in {hours}h (fires at {revoke_at.strftime('%Y-%m-%d %H:%M UTC')})",
+    ))
+    db.session.commit()
+    flash(f"Auto-revoke scheduled in {hours} hours.", "success")
+    return redirect(url_for("admin.number_pool"))
+
+
+@admin_bp.route("/cancel-auto-revoke", methods=["POST"])
+@admin_required
+def cancel_auto_revoke():
+    """Cancel any pending auto-revoke schedule."""
+    deleted = AutoRevokeSchedule.query.filter_by(is_executed=False).delete()
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="cancel_auto_revoke",
+        details=f"Cancelled {deleted} pending auto-revoke schedule(s)",
+    ))
+    db.session.commit()
+    flash("Auto-revoke cancelled.", "info")
+    return redirect(url_for("admin.number_pool"))
 
 
 # ═══════════════════════════════════════════

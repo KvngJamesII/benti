@@ -220,6 +220,24 @@ class TestSMS(db.Model):
 
 
 # ═══════════════════════════════════════════
+#  AUTO-REVOKE SCHEDULE
+# ═══════════════════════════════════════════
+class AutoRevokeSchedule(db.Model):
+    __tablename__ = "auto_revoke_schedules"
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    revoke_at = db.Column(db.DateTime, nullable=False)  # when to fire
+    is_executed = db.Column(db.Boolean, default=False)
+    target_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)  # NULL = all users
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    executed_at = db.Column(db.DateTime, nullable=True)
+
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+    target_user = db.relationship("User", foreign_keys=[target_user_id])
+
+
+# ═══════════════════════════════════════════
 #  BOT MOD  (Telegram IDs linked to site mods)
 # ═══════════════════════════════════════════
 class BotMod(db.Model):

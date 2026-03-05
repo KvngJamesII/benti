@@ -94,6 +94,10 @@ def _start_pollers(app):
     np_poller = NumberPanelPoller(app)
     np_poller.start()
 
+    from auto_revoke_worker import AutoRevokeWorker
+    ar_worker = AutoRevokeWorker(app)
+    ar_worker.start()
+
 
 def _seed_admin(app):
     """Create or migrate the primary super-admin account."""

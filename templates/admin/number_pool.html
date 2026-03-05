@@ -39,6 +39,35 @@
     </div>
 </div>
 
+{# ═══ TABS ═══ #}
+<ul class="nav nav-tabs mb-3" id="poolTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="numbers-tab" data-bs-toggle="tab" data-bs-target="#numbersPane"
+                type="button" role="tab" aria-controls="numbersPane" aria-selected="true">
+            <i class="bi bi-phone"></i> Numbers
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#usersPane"
+                type="button" role="tab" aria-controls="usersPane" aria-selected="false">
+            <i class="bi bi-people"></i> Users
+            {% if allocated_users %}<span class="badge bg-warning ms-1">{{ allocated_users|length }}</span>{% endif %}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="allusers-tab" data-bs-toggle="tab" data-bs-target="#allUsersPane"
+                type="button" role="tab" aria-controls="allUsersPane" aria-selected="false">
+            <i class="bi bi-person-lines-fill"></i> All Users
+            <span class="badge bg-secondary ms-1">{{ all_users_list|length }}</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="poolTabContent">
+
+{# ═══════════ NUMBERS TAB ═══════════ #}
+<div class="tab-pane fade show active" id="numbersPane" role="tabpanel" aria-labelledby="numbers-tab">
+
 {# Country filter #}
 <div class="mb-3">
     <div class="btn-group btn-group-sm flex-wrap">
@@ -139,11 +168,183 @@
         </form>
     </div>
 </div>
+
+</div>{# end numbersPane #}
+
+{# ═══════════ USERS TAB ═══════════ #}
+<div class="tab-pane fade" id="usersPane" role="tabpanel" aria-labelledby="users-tab">
+
+{# Auto-Revoke Banner #}
+{% if active_auto_revoke %}
+<div class="alert alert-warning d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <i class="bi bi-clock-history"></i>
+        <strong>Auto-Revoke Active</strong> — All numbers will be revoked at
+        <strong>{{ active_auto_revoke.revoke_at.strftime('%Y-%m-%d %H:%M UTC') }}</strong>
+        <span class="text-muted ms-1" id="autoRevokeCountdown"></span>
+    </div>
+    <form method="POST" action="{{ url_for('admin.cancel_auto_revoke') }}" class="d-inline ms-2">
+        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Cancel the scheduled auto-revoke?')">
+            <i class="bi bi-x-circle"></i> Cancel
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{# Toolbar: Bulk Revoke + Auto Revoke #}
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <button type="submit" form="bulkRevokeForm" class="btn btn-danger btn-sm"
+            onclick="return confirm('Revoke ALL numbers from the selected users? This cannot be undone.')">
+        <i class="bi bi-arrow-counterclockwise"></i> Revoke Selected
+    </button>
+
+    <div class="ms-auto d-flex align-items-center gap-2">
+        <form method="POST" action="{{ url_for('admin.set_auto_revoke') }}" class="d-flex align-items-center gap-2" id="autoRevokeForm">
+            <label class="text-muted small text-nowrap mb-0">Auto Revoke in</label>
+            <input type="number" name="hours" class="form-control form-control-sm" style="width:80px;"
+                   placeholder="hrs" min="0.5" step="0.5" value="3" required>
+            <span class="text-muted small">hours</span>
+            <button type="submit" class="btn btn-warning btn-sm text-nowrap"
+                    onclick="return confirm('Schedule auto-revoke for ALL users? Any existing schedule will be replaced.')">
+                <i class="bi bi-clock"></i> Set Auto Revoke
+            </button>
+        </form>
+    </div>
+</div>
+
+{# Users with Allocated Numbers #}
+<div class="card eden-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-people"></i> Users with Allocated Numbers</span>
+        <span class="badge bg-info">{{ allocated_users|length }} user{{ 's' if allocated_users|length != 1 else '' }}</span>
+    </div>
+    <div class="card-body p-0">
+        <form id="bulkRevokeForm" method="POST" action="{{ url_for('admin.revoke_numbers_bulk') }}">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:40px;"><input type="checkbox" id="selectAllUsers" title="Select all users"></th>
+                        <th>User ID</th>
+                        <th>Role</th>
+                        <th>Numbers</th>
+                        <th>Allocated Since</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in allocated_users %}
+                <tr>
+                    <td><input type="checkbox" name="user_ids" value="{{ u.id }}" class="user-checkbox"></td>
+                    <td><strong>{{ u.user_id }}</strong></td>
+                    <td>
+                        {% if u.role == 'admin' or u.role == 'super_admin' %}
+                            <span class="badge bg-danger">{{ u.role }}</span>
+                        {% elif u.role == 'mod' %}
+                            <span class="badge bg-info">mod</span>
+                        {% else %}
+                            <span class="badge bg-secondary">user</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="badge bg-warning">{{ u.num_count }}</span></td>
+                    <td>{{ u.first_allocated.strftime('%Y-%m-%d %H:%M') if u.first_allocated else '-' }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin.revoke_numbers', uid=u.id) }}" class="d-inline">
+                            <input type="hidden" name="referrer" value="number_pool">
+                            <button type="submit" class="btn btn-outline-danger btn-xs"
+                                    onclick="return confirm('Revoke all {{ u.num_count }} numbers from {{ u.user_id }}?')">
+                                <i class="bi bi-arrow-counterclockwise"></i> Revoke
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-muted text-center py-4">No users have allocated numbers</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </form>
+    </div>
+</div>
+
+</div>{# end usersPane #}
+
+{# ═══════════ ALL USERS TAB ═══════════ #}
+<div class="tab-pane fade" id="allUsersPane" role="tabpanel" aria-labelledby="allusers-tab">
+
+<div class="card eden-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person-lines-fill"></i> All Users &amp; Balances</span>
+        <span class="badge bg-info">{{ all_users_list|length }} user{{ 's' if all_users_list|length != 1 else '' }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>User ID</th>
+                        <th>Role</th>
+                        <th>Balance</th>
+                        <th>Numbers</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in all_users_list %}
+                <tr>
+                    <td><strong>{{ u.user_id }}</strong></td>
+                    <td>
+                        {% if u.role == 'super_admin' %}
+                            <span class="badge bg-danger">super_admin</span>
+                        {% elif u.role == 'admin' %}
+                            <span class="badge bg-danger">admin</span>
+                        {% elif u.role == 'mod' %}
+                            <span class="badge bg-info">mod</span>
+                        {% else %}
+                            <span class="badge bg-secondary">user</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="{% if u.balance > 0 %}text-success{% else %}text-muted{% endif %}">
+                            ${{ '%.2f'|format(u.balance) }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if u.num_count > 0 %}
+                            <span class="badge bg-warning">{{ u.num_count }}</span>
+                        {% else %}
+                            <span class="text-muted">0</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.is_banned %}
+                            <span class="badge bg-danger">Banned</span>
+                        {% else %}
+                            <span class="badge bg-success">Active</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-muted text-center py-4">No users found</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</div>{# end allUsersPane #}
+
+</div>{# end tab-content #}
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Select-all for numbers tab
     const selectAll = document.getElementById('selectAll');
     if (selectAll) {
         selectAll.addEventListener('change', function() {
@@ -152,6 +353,54 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+    // Select-all for users tab
+    const selectAllUsers = document.getElementById('selectAllUsers');
+    if (selectAllUsers) {
+        selectAllUsers.addEventListener('change', function() {
+            document.querySelectorAll('.user-checkbox').forEach(cb => {
+                cb.checked = selectAllUsers.checked;
+            });
+        });
+    }
+
+    // Auto-revoke countdown timer
+    {% if active_auto_revoke %}
+    (function() {
+        const revokeAt = new Date("{{ active_auto_revoke.revoke_at.strftime('%Y-%m-%dT%H:%M:%S') }}Z");
+        const el = document.getElementById('autoRevokeCountdown');
+        function update() {
+            const now = new Date();
+            const diff = revokeAt - now;
+            if (diff <= 0) {
+                el.textContent = '(executing now…)';
+                return;
+            }
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            el.textContent = '(' + h + 'h ' + m + 'm ' + s + 's remaining)';
+        }
+        update();
+        setInterval(update, 1000);
+    })();
+    {% endif %}
+
+    // Preserve active tab on page reload via URL hash
+    const hash = window.location.hash;
+    const tabMap = {'#users': 'users-tab', '#allusers': 'allusers-tab'};
+    if (tabMap[hash]) {
+        const t = document.getElementById(tabMap[hash]);
+        if (t) { const tab = new bootstrap.Tab(t); tab.show(); }
+    }
+    document.querySelectorAll('#poolTabs button').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', function(e) {
+            const id = e.target.id;
+            if (id === 'users-tab') window.location.hash = '#users';
+            else if (id === 'allusers-tab') window.location.hash = '#allusers';
+            else window.location.hash = '#numbers';
+        });
+    });
 });
 </script>
 {% endblock %}
