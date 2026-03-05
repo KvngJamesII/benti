@@ -109,15 +109,50 @@
     <div class="card-header"><i class="bi bi-book me-1"></i> API Documentation</div>
     <div class="card-body">
 
+        <h6 class="text-eden mb-2">How to Use</h6>
+        <p class="small text-muted mb-2">
+            The easiest way to use the API is to <strong>paste a URL directly in your browser</strong>. Just add your token as <code>api_key</code> to the URL and you'll get a JSON response instantly.
+        </p>
+
+        <div class="alert alert-dark border-secondary mb-4 p-3">
+            <strong class="text-eden d-block mb-2"><i class="bi bi-lightbulb me-1"></i> Quick Start — just open these in your browser:</strong>
+            {% if tokens %}
+            {% set tk = tokens[0].token %}
+            <div class="mb-2">
+                <small class="text-muted d-block mb-1">Check your balance:</small>
+                <code class="small user-select-all text-break">{{ request.host_url }}api/v1/balance?api_key={{ tk }}</code>
+            </div>
+            <div class="mb-2">
+                <small class="text-muted d-block mb-1">List your numbers:</small>
+                <code class="small user-select-all text-break">{{ request.host_url }}api/v1/numbers?api_key={{ tk }}</code>
+            </div>
+            <div class="mb-2">
+                <small class="text-muted d-block mb-1">Get latest SMS:</small>
+                <code class="small user-select-all text-break">{{ request.host_url }}api/v1/sms/latest?api_key={{ tk }}</code>
+            </div>
+            <div class="mb-2">
+                <small class="text-muted d-block mb-1">Get latest Telegram SMS only:</small>
+                <code class="small user-select-all text-break">{{ request.host_url }}api/v1/sms/latest?api_key={{ tk }}&service=Telegram</code>
+            </div>
+            <div>
+                <small class="text-muted d-block mb-1">List all your SMS (page 1, 20 per page):</small>
+                <code class="small user-select-all text-break">{{ request.host_url }}api/v1/sms/list?api_key={{ tk }}&limit=20&page=1</code>
+            </div>
+            {% else %}
+            <code class="small text-break">http://your-site.com/api/v1/balance?api_key=YOUR_TOKEN</code>
+            {% endif %}
+        </div>
+
+        <p class="small text-muted mb-3">
+            Copy any URL above, paste it in your browser address bar, and hit Enter — you'll see the JSON response right away. You can also use these URLs in your bots or scripts.
+        </p>
+
+        <hr class="border-secondary">
+
         <h6 class="text-eden mb-2">Authentication</h6>
         <p class="small text-muted mb-3">
-            Pass your token via the <code>X-API-Key</code> header or the <code>api_key</code> query parameter.
+            Pass your token via the <code>api_key</code> query parameter (easiest) or the <code>X-API-Key</code> header.
         </p>
-        <div class="bg-dark border border-secondary rounded p-2 mb-4">
-            <code class="small text-light">GET /api/v1/sms/latest?api_key=YOUR_TOKEN</code><br>
-            <small class="text-muted">— or —</small><br>
-            <code class="small text-light">Header: X-API-Key: YOUR_TOKEN</code>
-        </div>
 
         <h6 class="text-eden mb-2">Endpoints</h6>
 
