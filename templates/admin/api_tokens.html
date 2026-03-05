@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}API Tokens – Eden SMS{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-key text-eden"></i> API Token Management</h4>
+
+{# ═══ CREATE TOKEN ═══ #}
+<div class="card eden-card mb-4">
+    <div class="card-header"><i class="bi bi-plus-circle me-1"></i> Create New Token</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('admin.create_api_token') }}" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small text-muted">User</label>
+                <select name="user_id" class="form-select form-select-sm" required id="tokenUserSelect">
+                    <option value="">Select user…</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}">{{ u.user_id }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small text-muted">Label (optional)</label>
+                <input type="text" name="label" class="form-control form-control-sm" placeholder="e.g. Telegram Bot">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-eden btn-sm w-100">
+                    <i class="bi bi-key me-1"></i> Generate Token
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ═══ SEARCH ═══ #}
+<div class="mb-3">
+    <input type="text" class="form-control form-control-sm" id="tokenSearch"
+           placeholder="Search by user or label…" style="max-width:300px;">
+</div>
+
+{# ═══ TOKENS TABLE ═══ #}
+<div class="card eden-card">
+    <div class="card-header d-flex justify-content-between">
+        <span><i class="bi bi-list-ul me-1"></i> All API Tokens</span>
+        <span class="badge bg-eden">{{ tokens|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0" id="tokensTable">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Label</th>
+                        <th>Token</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Last Used</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for t in tokens %}
+                <tr>
+                    <td><strong>{{ t.user.user_id }}</strong></td>
+                    <td>{{ t.label or '-' }}</td>
+                    <td>
+                        <code class="small user-select-all" style="font-size:0.75rem;">{{ t.token[:12] }}…</code>
+                        <button class="btn btn-outline-secondary btn-xs ms-1" onclick="copyToken('{{ t.token }}')" title="Copy full token">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </td>
+                    <td>
+                        {% if t.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-danger">Revoked</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '-' }}</td>
+                    <td>{{ t.last_used_at.strftime('%Y-%m-%d %H:%M') if t.last_used_at else 'Never' }}</td>
+                    <td>
+                        {% if t.is_active %}
+                        <form method="POST" action="{{ url_for('admin.revoke_api_token', tid=t.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-outline-warning btn-xs"
+                                    onclick="return confirm('Revoke this token?')">Revoke</button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('admin.activate_api_token', tid=t.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-outline-success btn-xs">Activate</button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('admin.delete_api_token', tid=t.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-outline-danger btn-xs"
+                                    onclick="return confirm('Permanently delete this token?')">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-muted text-center py-4">
+                    <i class="bi bi-key fs-1 d-block mb-2"></i>
+                    No API tokens created yet
+                </td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyToken(token) {
+    navigator.clipboard.writeText(token).then(() => {
+        // Brief visual feedback
+        const btn = event.currentTarget;
+        const icon = btn.querySelector('i');
+        icon.className = 'bi bi-check-lg text-success';
+        setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 1500);
+    });
+}
+
+document.getElementById('tokenSearch').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('#tokensTable tbody tr').forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

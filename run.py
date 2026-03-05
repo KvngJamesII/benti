@@ -34,11 +34,13 @@ def create_app():
     from routes.admin import admin_bp
     from routes.mod import mod_bp
     from routes.user import user_bp
+    from routes.api_v1 import api_v1_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(mod_bp)
     app.register_blueprint(user_bp)
+    app.register_blueprint(api_v1_bp)
 
     # ── Maintenance mode middleware ──
     from models import get_setting

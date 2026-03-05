@@ -7,7 +7,7 @@ from models import (
     db, User, Number, NumberBatch, SMS, Withdrawal, Setting,
     ActivityLog, Announcement, TestNumber, TestSMS, get_setting, set_setting,
     AutoRevokeSchedule, detect_country_from_phone, PHONE_COUNTRY_CODES,
-    ListPagination,
+    ListPagination, ApiToken,
 )
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -1512,4 +1512,63 @@ def live_sms():
         date_from=date_from, date_to=date_to,
         country_flags=COUNTRY_FLAGS, role_prefix="admin",
     )
+
+
+# ═══════════════════════════════════════════
+#  API TOKEN MANAGEMENT  (super_admin only)
+# ═══════════════════════════════════════════
+@admin_bp.route("/api-tokens")
+@super_admin_required
+def api_tokens():
+    tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
+    users = User.query.filter_by(role="user").order_by(User.user_id).all()
+    return render_template("admin/api_tokens.html", tokens=tokens, users=users)
+
+
+@admin_bp.route("/api-tokens/create", methods=["POST"])
+@super_admin_required
+def create_api_token():
+    user_id = request.form.get("user_id", type=int)
+    label = request.form.get("label", "").strip() or "Default"
+    u = User.query.get(user_id)
+    if not u:
+        flash("User not found.", "danger")
+        return redirect(url_for("admin.api_tokens"))
+    token = ApiToken(user_id=u.id, token=ApiToken.generate_token(), label=label)
+    db.session.add(token)
+    db.session.commit()
+    flash(f"API token created for {u.user_id}.", "success")
+    return redirect(url_for("admin.api_tokens"))
+
+
+@admin_bp.route("/api-tokens/<int:tid>/revoke", methods=["POST"])
+@super_admin_required
+def revoke_api_token(tid):
+    token = ApiToken.query.get_or_404(tid)
+    token.is_active = False
+    db.session.commit()
+    flash(f"Token for {token.user.user_id} revoked.", "info")
+    return redirect(url_for("admin.api_tokens"))
+
+
+@admin_bp.route("/api-tokens/<int:tid>/activate", methods=["POST"])
+@super_admin_required
+def activate_api_token(tid):
+    token = ApiToken.query.get_or_404(tid)
+    token.is_active = True
+    db.session.commit()
+    flash(f"Token for {token.user.user_id} re-activated.", "success")
+    return redirect(url_for("admin.api_tokens"))
+
+
+@admin_bp.route("/api-tokens/<int:tid>/delete", methods=["POST"])
+@super_admin_required
+def delete_api_token(tid):
+    token = ApiToken.query.get_or_404(tid)
+    uid = token.user.user_id
+    db.session.delete(token)
+    db.session.commit()
+    flash(f"Token for {uid} deleted.", "info")
+    return redirect(url_for("admin.api_tokens"))
+
 

@@ -1,5 +1,6 @@
 from datetime import datetime
 from math import ceil
+import secrets
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -267,6 +268,27 @@ class ActivityLog(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship("User", foreign_keys=[user_id])
+
+
+# ═══════════════════════════════════════════
+#  API TOKEN  (created by super_admin for users)
+# ═══════════════════════════════════════════
+class ApiToken(db.Model):
+    __tablename__ = "api_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    label = db.Column(db.String(100), default="")
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", backref=db.backref("api_tokens", lazy="dynamic"))
+
+    @staticmethod
+    def generate_token():
+        return secrets.token_hex(32)
 
 
 # ═══════════════════════════════════════════

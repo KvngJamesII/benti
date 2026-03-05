@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 from models import (
     db, User, Number, SMS, Withdrawal, ActivityLog, Announcement,
-    TestNumber, TestSMS, get_setting,
+    TestNumber, TestSMS, get_setting, ApiToken,
 )
 
 user_bp = Blueprint("user", __name__, url_prefix="/user")
@@ -415,3 +415,14 @@ def live_sms():
         date_from=date_from, date_to=date_to,
         country_flags=COUNTRY_FLAGS, role_prefix="user",
     )
+
+
+# ═══════════════════════════════════════════
+#  MY API
+# ═══════════════════════════════════════════
+@user_bp.route("/my-api")
+@user_required
+def my_api():
+    tokens = ApiToken.query.filter_by(user_id=current_user.id, is_active=True).all()
+    return render_template("user/my_api.html", tokens=tokens)
+
