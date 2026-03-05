@@ -115,20 +115,77 @@ def dashboard():
 @admin_required
 def users():
     role_filter = request.args.get("role", "all")
+    sort_by = request.args.get("sort", "created")  # created | numbers | sms | balance
+    search_q = request.args.get("q", "").strip()
+
     # Super admin sees all users including other admins; regular admin sees mods+users only
     if current_user.role == "super_admin":
-        q = User.query.filter(User.id != current_user.id)  # hide self
+        base_q = User.query.filter(User.id != current_user.id)
     else:
-        q = User.query.filter(User.role.notin_(["admin", "super_admin"]))
+        base_q = User.query.filter(User.role.notin_(["admin", "super_admin"]))
+
     if role_filter == "mod":
-        q = q.filter_by(role="mod")
+        base_q = base_q.filter_by(role="mod")
     elif role_filter == "user":
-        q = q.filter_by(role="user")
+        base_q = base_q.filter_by(role="user")
     elif role_filter == "admin":
-        q = q.filter_by(role="admin")
-    all_users = q.order_by(User.created_at.desc()).all()
-    return render_template("admin/users.html", users=all_users, role_filter=role_filter,
+        base_q = base_q.filter_by(role="admin")
+    elif role_filter == "banned":
+        base_q = base_q.filter_by(is_banned=True)
+
+    if search_q:
+        base_q = base_q.filter(User.user_id.contains(search_q))
+
+    all_users = base_q.all()
+
+    # Today for SMS counting
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Enrich each user with stats
+    enriched = []
+    for u in all_users:
+        num_count = Number.query.filter_by(allocated_to_id=u.id).count()
+        sms_today = SMS.query.filter(SMS.user_id == u.id, SMS.received_at >= today_start).count()
+        total_sms = SMS.query.filter_by(user_id=u.id).count()
+        enriched.append({
+            "id": u.id,
+            "user_id": u.user_id,
+            "role": u.role,
+            "balance": u.balance or 0.0,
+            "is_banned": u.is_banned,
+            "created_at": u.created_at,
+            "created_by": u.created_by.user_id if u.created_by else "-",
+            "num_count": num_count,
+            "sms_today": sms_today,
+            "total_sms": total_sms,
+        })
+
+    # Sort
+    if sort_by == "numbers":
+        enriched.sort(key=lambda x: x["num_count"], reverse=True)
+    elif sort_by == "sms":
+        enriched.sort(key=lambda x: x["sms_today"], reverse=True)
+    elif sort_by == "balance":
+        enriched.sort(key=lambda x: x["balance"], reverse=True)
+    elif sort_by == "total_sms":
+        enriched.sort(key=lambda x: x["total_sms"], reverse=True)
+    else:
+        enriched.sort(key=lambda x: x["created_at"] or datetime.min, reverse=True)
+
+    # Summary stats
+    total_users_count = User.query.filter_by(role="user").count()
+    total_mods_count = User.query.filter_by(role="mod").count()
+    total_banned = User.query.filter_by(is_banned=True).count()
+    users_with_numbers = db.session.query(db.func.count(db.distinct(Number.allocated_to_id))).filter(Number.allocated_to_id.isnot(None)).scalar() or 0
+
+    return render_template("admin/users.html",
+        users=enriched, role_filter=role_filter,
+        sort_by=sort_by, search_q=search_q,
         is_super_admin=current_user.role == "super_admin",
+        total_users_count=total_users_count,
+        total_mods_count=total_mods_count,
+        total_banned=total_banned,
+        users_with_numbers=users_with_numbers,
     )
 
 
