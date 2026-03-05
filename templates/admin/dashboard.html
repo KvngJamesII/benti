@@ -86,7 +86,14 @@
                         <tr>
                             <td>{{ sms.service }}</td>
                             <td><code>{{ sms.phone_number }}</code></td>
-                            <td>{{ sms.country }}</td>
+                            <td>
+                                {% set detected = sms._detected_country or '' %}
+                                {% if detected %}
+                                    {{ country_flags.get(detected, '🏳️') }} {{ detected }}
+                                {% else %}
+                                    <span class="text-muted">Unknown</span>
+                                {% endif %}
+                            </td>
                             <td>{{ sms.received_at.strftime('%H:%M') if sms.received_at else '-' }}</td>
                         </tr>
                         {% else %}

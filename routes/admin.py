@@ -93,6 +93,9 @@ def dashboard():
     today_sms = SMS.query.filter(SMS.received_at >= datetime.utcnow().replace(hour=0, minute=0, second=0)).count()
     pending_withdrawals = Withdrawal.query.filter_by(status="pending").count()
     recent_sms = SMS.query.order_by(SMS.received_at.desc()).limit(10).all()
+    for sms in recent_sms:
+        detected = detect_country_from_phone(sms.phone_number)
+        sms._detected_country = detected or sms.country or ''
     recent_logs = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(10).all()
 
     return render_template("admin/dashboard.html",
@@ -101,6 +104,7 @@ def dashboard():
         total_sms=total_sms, today_sms=today_sms,
         pending_withdrawals=pending_withdrawals,
         recent_sms=recent_sms, recent_logs=recent_logs,
+        country_flags=COUNTRY_FLAGS,
     )
 
 
