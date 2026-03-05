@@ -37,6 +37,16 @@
                         </select>
                     </div>
 
+                    <div class="mb-3">
+                        <label for="withdrawal_method" class="form-label">Withdrawal Method</label>
+                        <select class="form-select" id="withdrawal_method" name="withdrawal_method">
+                            <option value="both" {% if withdrawal_method == 'both' %}selected{% endif %}>Both (Binance + USDT BEP-20)</option>
+                            <option value="binance" {% if withdrawal_method == 'binance' %}selected{% endif %}>Binance UID Only</option>
+                            <option value="usdt_bep20" {% if withdrawal_method == 'usdt_bep20' %}selected{% endif %}>USDT BEP-20 Only</option>
+                        </select>
+                        <div class="form-text">Controls which payment methods users can select.</div>
+                    </div>
+
                     <button type="submit" class="btn btn-eden">
                         <i class="bi bi-check-lg"></i> Save Settings
                     </button>
@@ -54,6 +64,13 @@
                     <tr><td>Min Withdrawal</td><td><strong>${{ min_withdrawal }}</strong></td></tr>
                     <tr><td>Max Numbers/User/Day</td><td><strong>{{ max_numbers_per_user }}</strong></td></tr>
                     <tr><td>Withdrawal Day</td><td><strong>{{ withdrawal_day }}</strong></td></tr>
+                    <tr><td>Withdrawal Method</td><td>
+                        <strong>
+                        {% if withdrawal_method == 'binance' %}Binance Only
+                        {% elif withdrawal_method == 'usdt_bep20' %}USDT BEP-20 Only
+                        {% else %}Both{% endif %}
+                        </strong>
+                    </td></tr>
                 </table>
             </div>
         </div>

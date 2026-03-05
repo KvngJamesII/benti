@@ -189,7 +189,13 @@ def payment():
 def settings():
     if request.method == "POST":
         method = request.form.get("payment_method", "usdt_bep20").strip()
+        allowed_method = get_setting("withdrawal_method", "both")
         if method not in ("usdt_bep20", "binance_uid"):
+            method = "usdt_bep20"
+        # Enforce admin's withdrawal method setting
+        if allowed_method == "binance" and method != "binance_uid":
+            method = "binance_uid"
+        elif allowed_method == "usdt_bep20" and method != "usdt_bep20":
             method = "usdt_bep20"
 
         wallet = request.form.get("wallet_address", "").strip()
@@ -205,10 +211,11 @@ def settings():
     otp_rate = float(get_setting("otp_rate", "0.005"))
     min_withdrawal = float(get_setting("min_withdrawal", "5"))
     withdrawal_day = get_setting("withdrawal_day", "Tuesday")
+    withdrawal_method = get_setting("withdrawal_method", "both")
 
     return render_template("user/settings.html",
         otp_rate=otp_rate, min_withdrawal=min_withdrawal,
-        withdrawal_day=withdrawal_day,
+        withdrawal_day=withdrawal_day, withdrawal_method=withdrawal_method,
     )
 
 
@@ -220,6 +227,7 @@ def settings():
 def withdrawal():
     min_wd = float(get_setting("min_withdrawal", "5"))
     withdrawal_day = get_setting("withdrawal_day", "Tuesday")
+    withdrawal_method = get_setting("withdrawal_method", "both")
     balance = current_user.balance or 0.0
 
     if request.method == "POST":
@@ -282,7 +290,8 @@ def withdrawal():
 
     return render_template("user/withdrawal.html",
         balance=balance, min_withdrawal=min_wd,
-        withdrawal_day=withdrawal_day, history=history,
+        withdrawal_day=withdrawal_day, withdrawal_method=withdrawal_method,
+        history=history,
     )
 
 

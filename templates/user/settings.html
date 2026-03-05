@@ -32,28 +32,32 @@
             <div class="card-header">Payment Settings</div>
             <div class="card-body">
                 <form method="POST">
-                    {# Payment method selector #}
+                    {# Payment method selector — filtered by admin setting #}
                     <div class="mb-3">
                         <label class="form-label">Payment Method</label>
                         <div class="d-flex gap-3">
+                            {% if withdrawal_method in ('usdt_bep20', 'both') %}
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="payment_method"
                                        id="pm_usdt" value="usdt_bep20"
-                                       {% if (current_user.payment_method or 'usdt_bep20') == 'usdt_bep20' %}checked{% endif %}
+                                       {% if (current_user.payment_method or 'usdt_bep20') == 'usdt_bep20' or withdrawal_method == 'usdt_bep20' %}checked{% endif %}
                                        onchange="togglePaymentFields()">
                                 <label class="form-check-label" for="pm_usdt">
                                     <i class="bi bi-currency-dollar text-success"></i> USDT BEP-20
                                 </label>
                             </div>
+                            {% endif %}
+                            {% if withdrawal_method in ('binance', 'both') %}
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="payment_method"
                                        id="pm_binance" value="binance_uid"
-                                       {% if current_user.payment_method == 'binance_uid' %}checked{% endif %}
+                                       {% if current_user.payment_method == 'binance_uid' or withdrawal_method == 'binance' %}checked{% endif %}
                                        onchange="togglePaymentFields()">
                                 <label class="form-check-label" for="pm_binance">
                                     <i class="bi bi-bank text-warning"></i> Binance UID
                                 </label>
                             </div>
+                            {% endif %}
                         </div>
                     </div>
 
@@ -92,9 +96,12 @@
 
 <script>
 function togglePaymentFields() {
-    const usdt = document.getElementById('pm_usdt').checked;
+    const usdtRadio = document.getElementById('pm_usdt');
+    const binanceRadio = document.getElementById('pm_binance');
+    const usdt = usdtRadio ? usdtRadio.checked : false;
+    const binance = binanceRadio ? binanceRadio.checked : false;
     document.getElementById('field_usdt').style.display = usdt ? '' : 'none';
-    document.getElementById('field_binance').style.display = usdt ? 'none' : '';
+    document.getElementById('field_binance').style.display = binance ? '' : 'none';
 }
 togglePaymentFields();
 </script>

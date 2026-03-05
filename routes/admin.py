@@ -912,16 +912,21 @@ def settings():
         min_withdrawal = request.form.get("min_withdrawal", "5")
         max_numbers = request.form.get("max_numbers_per_user", "100")
         withdrawal_day = request.form.get("withdrawal_day", "Tuesday")
+        withdrawal_method = request.form.get("withdrawal_method", "both")
+        if withdrawal_method not in ("binance", "usdt_bep20", "both"):
+            withdrawal_method = "both"
 
         set_setting("otp_rate", otp_rate)
         set_setting("min_withdrawal", min_withdrawal)
         set_setting("max_numbers_per_user", max_numbers)
         set_setting("withdrawal_day", withdrawal_day)
+        set_setting("withdrawal_method", withdrawal_method)
 
         db.session.add(ActivityLog(
             user_id=current_user.id, action="update_settings",
             details=f"OTP rate={otp_rate}, min withdrawal={min_withdrawal}, "
-                    f"max numbers/user={max_numbers}, withdrawal day={withdrawal_day}",
+                    f"max numbers/user={max_numbers}, withdrawal day={withdrawal_day}, "
+                    f"withdrawal method={withdrawal_method}",
         ))
         db.session.commit()
         flash("Settings updated.", "success")
@@ -932,6 +937,7 @@ def settings():
         min_withdrawal=get_setting("min_withdrawal", "5"),
         max_numbers_per_user=get_setting("max_numbers_per_user", "100"),
         withdrawal_day=get_setting("withdrawal_day", "Tuesday"),
+        withdrawal_method=get_setting("withdrawal_method", "both"),
         maintenance_mode=get_setting("maintenance_mode", "off"),
         maintenance_message=get_setting("maintenance_message", "We'll be back shortly."),
     )

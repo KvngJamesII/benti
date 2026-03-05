@@ -8,8 +8,10 @@
 <div class="alert alert-info border-0">
     <i class="bi bi-info-circle me-2"></i>
     <strong>Min Withdrawal is ${{ min_withdrawal }}</strong> – Withdrawals are available on <strong>{{ withdrawal_day }}s</strong> only.
-    Payment will be sent to your
-    {% if current_user.payment_method == 'binance_uid' %}Binance UID{% else %}USDT BEP-20 wallet{% endif %}.
+    Payment will be sent via
+    {% if withdrawal_method == 'binance' %}<strong>Binance UID</strong>
+    {% elif withdrawal_method == 'usdt_bep20' %}<strong>USDT BEP-20</strong>
+    {% else %}your chosen method (<strong>{{ 'Binance UID' if current_user.payment_method == 'binance_uid' else 'USDT BEP-20' }}</strong>){% endif %}.
 </div>
 
 <div class="row g-3 mb-4">
