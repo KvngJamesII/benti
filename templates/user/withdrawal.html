@@ -7,7 +7,8 @@
 {# Important notice #}
 <div class="alert alert-info border-0">
     <i class="bi bi-info-circle me-2"></i>
-    <strong>Min Withdrawal is ${{ min_withdrawal }}</strong> – Withdrawals are available on <strong>{{ withdrawal_day }}s</strong> only.
+    <strong>Min Withdrawal is ${{ min_withdrawal }}</strong> –
+    {% if withdrawal_day == 'Daily' %}Withdrawals are available <strong>every day</strong>.{% else %}Withdrawals are available on <strong>{{ withdrawal_day }}s</strong> only.{% endif %}
     Payment will be sent via
     {% if withdrawal_method == 'binance' %}<strong>Binance UID</strong>
     {% elif withdrawal_method == 'usdt_bep20' %}<strong>USDT BEP-20</strong>
@@ -19,7 +20,7 @@
         <div class="stat-card">
             <div class="stat-icon bg-eden"><i class="bi bi-wallet2"></i></div>
             <div class="stat-info">
-                <div class="stat-value">${{ '%.4f'|format(balance) }}</div>
+                <div class="stat-value">${{ '%.2f'|format(balance) }}</div>
                 <div class="stat-label">Available Balance</div>
             </div>
         </div>
@@ -56,12 +57,6 @@
                             {% if balance < min_withdrawal or not has_payment %}disabled{% endif %}>
                         <i class="bi bi-send me-1"></i> Request Withdrawal
                     </button>
-
-                    {% if balance < min_withdrawal %}
-                    <small class="text-muted d-block text-center mt-2">
-                        Need ${{ '%.4f'|format(min_withdrawal - balance) }} more to withdraw
-                    </small>
-                    {% endif %}
                 </form>
             </div>
         </div>
@@ -89,7 +84,7 @@
                 {% for w in history %}
                 <tr>
                     <td>{{ w.id }}</td>
-                    <td>${{ '%.4f'|format(w.amount) }}</td>
+                    <td>${{ '%.2f'|format(w.amount) }}</td>
                     <td>
                         {% if w.payment_method == 'binance_uid' %}
                             <span class="badge bg-warning text-dark">Binance</span>

@@ -256,10 +256,11 @@ def withdrawal():
                 return redirect(url_for("user.settings"))
 
         # Check if today is the withdrawal day
-        today_name = datetime.utcnow().strftime("%A")
-        if today_name != withdrawal_day:
-            flash(f"Withdrawals are only available on {withdrawal_day}s.", "warning")
-            return redirect(url_for("user.withdrawal"))
+        if withdrawal_day != "Daily":
+            today_name = datetime.utcnow().strftime("%A")
+            if today_name != withdrawal_day:
+                flash(f"Withdrawals are only available on {withdrawal_day}s.", "warning")
+                return redirect(url_for("user.withdrawal"))
 
         # Check for pending withdrawal
         pending = Withdrawal.query.filter_by(user_id=current_user.id, status="pending").first()
@@ -344,7 +345,17 @@ def test_otps():
             pass
 
     sms_list = q.order_by(TestSMS.received_at.desc()).all()
-    return render_template("user/test_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to)
+
+    from routes.admin import COUNTRY_FLAGS
+    from models import detect_country_from_phone
+    for sms in sms_list:
+        detected = detect_country_from_phone(sms.phone_number)
+        if detected:
+            sms._detected_country = detected
+        else:
+            sms._detected_country = sms.country or "Unknown"
+
+    return render_template("user/test_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to, country_flags=COUNTRY_FLAGS)
 
 
 # ═══════════════════════════════════════════
