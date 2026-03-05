@@ -64,25 +64,63 @@
                     {# USDT BEP-20 field #}
                     <div class="mb-3" id="field_usdt">
                         <label for="wallet_address" class="form-label">USDT BEP-20 Wallet Address</label>
+                        {% if current_user.wallet_address %}
+                        <div id="usdt_display">
+                            <div class="d-flex align-items-center gap-2">
+                                <code class="flex-grow-1 p-2 bg-dark rounded">{{ current_user.wallet_address }}</code>
+                                <button type="button" class="btn btn-outline-eden btn-sm" onclick="editField('usdt')">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </button>
+                            </div>
+                            <input type="hidden" name="wallet_address" id="wallet_address_hidden" value="{{ current_user.wallet_address }}">
+                        </div>
+                        <div id="usdt_edit" style="display:none;">
+                            <input type="text" class="form-control" id="wallet_address" name="wallet_address"
+                                   value="{{ current_user.wallet_address }}" placeholder="0x...">
+                            <div class="form-text">
+                                <i class="bi bi-exclamation-triangle text-warning me-1"></i>
+                                Ensure this is a valid BSC (BEP-20) address.
+                            </div>
+                        </div>
+                        {% else %}
                         <input type="text" class="form-control" id="wallet_address" name="wallet_address"
-                               value="{{ current_user.wallet_address or '' }}"
-                               placeholder="0x...">
+                               value="" placeholder="0x...">
                         <div class="form-text">
                             <i class="bi bi-exclamation-triangle text-warning me-1"></i>
                             Ensure this is a valid BSC (BEP-20) address.
                         </div>
+                        {% endif %}
                     </div>
 
                     {# Binance UID field #}
                     <div class="mb-3" id="field_binance">
                         <label for="binance_uid" class="form-label">Binance UID</label>
+                        {% if current_user.binance_uid %}
+                        <div id="binance_display">
+                            <div class="d-flex align-items-center gap-2">
+                                <code class="flex-grow-1 p-2 bg-dark rounded">{{ current_user.binance_uid }}</code>
+                                <button type="button" class="btn btn-outline-eden btn-sm" onclick="editField('binance')">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </button>
+                            </div>
+                            <input type="hidden" name="binance_uid" id="binance_uid_hidden" value="{{ current_user.binance_uid }}">
+                        </div>
+                        <div id="binance_edit" style="display:none;">
+                            <input type="text" class="form-control" id="binance_uid" name="binance_uid"
+                                   value="{{ current_user.binance_uid }}" placeholder="Enter your Binance UID">
+                            <div class="form-text">
+                                <i class="bi bi-info-circle text-info me-1"></i>
+                                Found in your Binance app under Profile &rarr; UID.
+                            </div>
+                        </div>
+                        {% else %}
                         <input type="text" class="form-control" id="binance_uid" name="binance_uid"
-                               value="{{ current_user.binance_uid or '' }}"
-                               placeholder="Enter your Binance UID">
+                               value="" placeholder="Enter your Binance UID">
                         <div class="form-text">
                             <i class="bi bi-info-circle text-info me-1"></i>
                             Found in your Binance app under Profile &rarr; UID.
                         </div>
+                        {% endif %}
                     </div>
 
                     <button type="submit" class="btn btn-eden">
@@ -103,6 +141,22 @@ function togglePaymentFields() {
     document.getElementById('field_usdt').style.display = usdt ? '' : 'none';
     document.getElementById('field_binance').style.display = binance ? '' : 'none';
 }
+
+function editField(type) {
+    if (type === 'usdt') {
+        document.getElementById('usdt_display').style.display = 'none';
+        document.getElementById('usdt_edit').style.display = '';
+        // Remove the hidden input so the form uses the text input
+        var h = document.getElementById('wallet_address_hidden');
+        if (h) h.remove();
+    } else {
+        document.getElementById('binance_display').style.display = 'none';
+        document.getElementById('binance_edit').style.display = '';
+        var h = document.getElementById('binance_uid_hidden');
+        if (h) h.remove();
+    }
+}
+
 togglePaymentFields();
 </script>
 {% endblock %}
