@@ -4,9 +4,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4><i class="bi bi-people text-eden"></i> Users & Moderators</h4>
-    <a href="{{ url_for('admin.create_account') }}" class="btn btn-eden btn-sm">
-        <i class="bi bi-person-plus"></i> Create
-    </a>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#transferModal">
+            <i class="bi bi-arrow-left-right"></i> Transfer
+        </button>
+        <a href="{{ url_for('admin.create_account') }}" class="btn btn-eden btn-sm">
+            <i class="bi bi-person-plus"></i> Create
+        </a>
+    </div>
 </div>
 
 {# ═══ STAT CARDS ═══ #}
@@ -50,7 +55,7 @@
 </div>
 
 {# ═══ FILTERS & SEARCH ═══ #}
-<div class="card eden-card mb-4">
+<div class="card eden-card mb-3">
     <div class="card-body py-2 px-3">
         <form method="GET">
             <div class="row g-2 align-items-center">
@@ -91,16 +96,30 @@
     </div>
 </div>
 
-{# ═══ USERS LIST ═══ #}
-{# Desktop: table — Mobile: card list #}
+{# ═══ BULK ACTIONS TOOLBAR ═══ #}
+<div class="d-flex gap-2 flex-wrap mb-3" id="bulkToolbar" style="display:none !important;">
+    <span class="text-muted small align-self-center" id="selectedCount">0 selected</span>
+    <button type="submit" form="bulkBanForm" class="btn btn-warning btn-sm text-dark"
+            onclick="return confirm('Ban all selected users?')">Bulk Ban</button>
+    <button type="submit" form="bulkRevokeForm" class="btn btn-outline-danger btn-sm"
+            onclick="return confirm('Revoke numbers from all selected users?')">Bulk Revoke</button>
+    <button type="submit" form="bulkDeleteForm" class="btn btn-danger btn-sm"
+            onclick="return confirm('Delete all selected users? This cannot be undone.')">Bulk Delete</button>
+</div>
 
-{# Desktop table (hidden on small screens) #}
+{# Hidden forms for bulk actions #}
+<form id="bulkBanForm" method="POST" action="{{ url_for('admin.bulk_ban') }}"></form>
+<form id="bulkRevokeForm" method="POST" action="{{ url_for('admin.bulk_revoke_users') }}"></form>
+<form id="bulkDeleteForm" method="POST" action="{{ url_for('admin.bulk_delete_users') }}"></form>
+
+{# ═══ DESKTOP TABLE ═══ #}
 <div class="card eden-card d-none d-lg-block">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-dark table-hover mb-0">
                 <thead>
                     <tr>
+                        <th style="width:40px;"><input type="checkbox" id="selectAll" title="Select all"></th>
                         <th>User ID</th>
                         <th>Role</th>
                         <th>Numbers</th>
@@ -114,7 +133,13 @@
                 <tbody>
                 {% for u in users %}
                 <tr>
-                    <td><strong>{{ u.user_id }}</strong><br><small class="text-muted">by {{ u.created_by }}</small></td>
+                    <td><input type="checkbox" class="user-cb" value="{{ u.id }}"></td>
+                    <td>
+                        <a href="{{ url_for('admin.user_detail', uid=u.id) }}" class="text-decoration-none text-eden">
+                            <strong>{{ u.user_id }}</strong>
+                        </a>
+                        <br><small class="text-muted">by {{ u.created_by }}</small>
+                    </td>
                     <td>
                         {% if u.role == 'super_admin' %}<span class="badge bg-danger">super_admin</span>
                         {% elif u.role == 'admin' %}<span class="badge bg-warning text-dark">admin</span>
@@ -140,13 +165,14 @@
                                         onclick="return confirm('Revoke all {{ u.num_count }} numbers from {{ u.user_id }}?')">Revoke</button>
                             </form>
                             {% endif %}
+                            <button class="btn btn-outline-info btn-xs" onclick="openResetModal('{{ u.id }}', '{{ u.user_id }}')">Reset PW</button>
                             <a href="{{ url_for('admin.delete_user', uid=u.id) }}" class="btn btn-danger btn-xs"
                                onclick="return confirm('Delete {{ u.user_id }}? This cannot be undone.')">Delete</a>
                         </div>
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" class="text-muted text-center py-4">No users found{% if search_q %} matching "{{ search_q }}"{% endif %}</td></tr>
+                <tr><td colspan="9" class="text-muted text-center py-4">No users found{% if search_q %} matching "{{ search_q }}"{% endif %}</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
@@ -154,18 +180,21 @@
     </div>
 </div>
 
-{# Mobile card list (visible only on small screens) #}
+{# ═══ MOBILE CARDS ═══ #}
 <div class="d-lg-none">
     {% for u in users %}
     <div class="card eden-card mb-2">
         <div class="card-body py-3 px-3">
             <div class="d-flex justify-content-between align-items-start mb-2">
-                <div>
-                    <strong class="fs-6">{{ u.user_id }}</strong>
-                    {% if u.role == 'super_admin' %}<span class="badge bg-danger ms-1">super_admin</span>
-                    {% elif u.role == 'admin' %}<span class="badge bg-warning text-dark ms-1">admin</span>
-                    {% elif u.role == 'mod' %}<span class="badge bg-info ms-1">mod</span>
-                    {% else %}<span class="badge bg-secondary ms-1">user</span>{% endif %}
+                <div class="d-flex align-items-center gap-2">
+                    <input type="checkbox" class="user-cb" value="{{ u.id }}">
+                    <a href="{{ url_for('admin.user_detail', uid=u.id) }}" class="text-decoration-none text-eden">
+                        <strong class="fs-6">{{ u.user_id }}</strong>
+                    </a>
+                    {% if u.role == 'super_admin' %}<span class="badge bg-danger">super_admin</span>
+                    {% elif u.role == 'admin' %}<span class="badge bg-warning text-dark">admin</span>
+                    {% elif u.role == 'mod' %}<span class="badge bg-info">mod</span>
+                    {% else %}<span class="badge bg-secondary">user</span>{% endif %}
                 </div>
                 {% if u.is_banned %}<span class="badge bg-danger">Banned</span>{% else %}<span class="badge bg-success">Active</span>{% endif %}
             </div>
@@ -189,7 +218,7 @@
                 </div>
             </div>
 
-            <small class="text-muted d-block mb-2">Created by {{ u.created_by }} · {{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '-' }}</small>
+            <small class="text-muted d-block mb-2">by {{ u.created_by }} · {{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '-' }}</small>
 
             <div class="d-flex gap-2 flex-wrap">
                 {% if u.is_banned %}
@@ -201,9 +230,10 @@
                 {% if u.num_count > 0 %}
                 <form method="POST" action="{{ url_for('admin.revoke_numbers', uid=u.id) }}" class="d-inline">
                     <button type="submit" class="btn btn-outline-danger btn-sm"
-                            onclick="return confirm('Revoke all {{ u.num_count }} numbers from {{ u.user_id }}?')">Revoke Numbers</button>
+                            onclick="return confirm('Revoke all {{ u.num_count }} numbers from {{ u.user_id }}?')">Revoke</button>
                 </form>
                 {% endif %}
+                <button class="btn btn-outline-info btn-sm" onclick="openResetModal('{{ u.id }}', '{{ u.user_id }}')">Reset PW</button>
                 <a href="{{ url_for('admin.delete_user', uid=u.id) }}" class="btn btn-danger btn-sm"
                    onclick="return confirm('Delete {{ u.user_id }}? This cannot be undone.')">Delete</a>
             </div>
@@ -218,4 +248,125 @@
     </div>
     {% endfor %}
 </div>
+
+{# ═══ PASSWORD RESET MODAL ═══ #}
+<div class="modal fade" id="resetModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark">
+            <form method="POST" id="resetForm">
+                <div class="modal-header border-secondary">
+                    <h6 class="modal-title">Reset Password</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2 text-muted">Reset password for <strong id="resetUserLabel"></strong></p>
+                    <input type="password" name="new_password" class="form-control" placeholder="New password" required minlength="4">
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-sm btn-eden">Reset Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# ═══ NUMBER TRANSFER MODAL ═══ #}
+<div class="modal fade" id="transferModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark">
+            <form method="POST" action="{{ url_for('admin.transfer_numbers') }}">
+                <div class="modal-header border-secondary">
+                    <h6 class="modal-title"><i class="bi bi-arrow-left-right me-1"></i> Transfer Numbers</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">From User</label>
+                        <select name="from_user_id" class="form-select" required>
+                            <option value="">Select source user...</option>
+                            {% for u in users %}
+                            {% if u.num_count > 0 %}
+                            <option value="{{ u.id }}">{{ u.user_id }} ({{ u.num_count }} numbers)</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">To User</label>
+                        <select name="to_user_id" class="form-select" required>
+                            <option value="">Select destination user...</option>
+                            {% for u in users %}
+                            <option value="{{ u.id }}">{{ u.user_id }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Country (optional — leave blank for all)</label>
+                        <input type="text" name="country" class="form-control" placeholder="e.g. Nigeria">
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-sm btn-eden" onclick="return confirm('Transfer numbers between users?')">Transfer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('.user-cb');
+    const selectAll = document.getElementById('selectAll');
+    const toolbar = document.getElementById('bulkToolbar');
+    const countEl = document.getElementById('selectedCount');
+    const bulkBanForm = document.getElementById('bulkBanForm');
+    const bulkRevokeForm = document.getElementById('bulkRevokeForm');
+    const bulkDeleteForm = document.getElementById('bulkDeleteForm');
+
+    function syncBulk() {
+        const checked = document.querySelectorAll('.user-cb:checked');
+        const count = checked.length;
+        if (count > 0) {
+            toolbar.style.cssText = '';
+            toolbar.classList.add('d-flex');
+        } else {
+            toolbar.style.display = 'none';
+            toolbar.classList.remove('d-flex');
+        }
+        countEl.textContent = count + ' selected';
+
+        // Sync hidden inputs into bulk forms
+        [bulkBanForm, bulkRevokeForm, bulkDeleteForm].forEach(function(form) {
+            form.querySelectorAll('input[name="user_ids"]').forEach(function(el) { el.remove(); });
+            checked.forEach(function(cb) {
+                var inp = document.createElement('input');
+                inp.type = 'hidden'; inp.name = 'user_ids'; inp.value = cb.value;
+                form.appendChild(inp);
+            });
+        });
+    }
+
+    checkboxes.forEach(function(cb) { cb.addEventListener('change', syncBulk); });
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            // Only toggle desktop table checkboxes
+            document.querySelectorAll('table .user-cb').forEach(function(cb) {
+                cb.checked = selectAll.checked;
+            });
+            syncBulk();
+        });
+    }
+});
+
+function openResetModal(uid, userId) {
+    document.getElementById('resetForm').action = '/admin/reset-password/' + uid;
+    document.getElementById('resetUserLabel').textContent = userId;
+    new bootstrap.Modal(document.getElementById('resetModal')).show();
+}
+</script>
 {% endblock %}

@@ -46,6 +46,19 @@ def dashboard():
 
     recent_otps = SMS.query.filter_by(user_id=current_user.id).order_by(SMS.received_at.desc()).limit(5).all()
 
+    # Daily SMS chart (last 14 days)
+    fourteen_days_ago = datetime.utcnow() - timedelta(days=14)
+    daily_sms = db.session.query(
+        func.date(SMS.received_at).label("day"),
+        func.count(SMS.id).label("count"),
+    ).filter(
+        SMS.user_id == current_user.id,
+        SMS.received_at >= fourteen_days_ago,
+    ).group_by(func.date(SMS.received_at)).order_by(func.date(SMS.received_at)).all()
+
+    chart_labels = [str(row.day) for row in daily_sms]
+    chart_data = [row.count for row in daily_sms]
+
     # Active announcements
     active_announcements = Announcement.query.filter_by(is_active=True).order_by(Announcement.created_at.desc()).all()
 
@@ -54,6 +67,7 @@ def dashboard():
         total_otps=total_otps, balance=balance, otp_rate=otp_rate,
         country_counts=country_counts, recent_otps=recent_otps,
         announcements=active_announcements,
+        chart_labels=chart_labels, chart_data=chart_data,
     )
 
 

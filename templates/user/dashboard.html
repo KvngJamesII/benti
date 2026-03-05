@@ -57,6 +57,16 @@
 </div>
 
 <div class="row g-3">
+    {# SMS Generation Chart #}
+    <div class="col-12">
+        <div class="card eden-card mb-3">
+            <div class="card-header"><i class="bi bi-graph-up me-1"></i> SMS Generation – Last 14 Days</div>
+            <div class="card-body" style="height:220px;">
+                <canvas id="smsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     {# Number Access Cards #}
     <div class="col-lg-6">
         <h6 class="mb-2"><i class="bi bi-phone me-1"></i>My Number Access</h6>
@@ -111,4 +121,35 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+new Chart(document.getElementById('smsChart').getContext('2d'), {
+    type: 'line',
+    data: {
+        labels: {{ chart_labels|tojson }},
+        datasets: [{
+            label: 'SMS Received',
+            data: {{ chart_data|tojson }},
+            borderColor: '#00d97e',
+            backgroundColor: 'rgba(0, 217, 126, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#00d97e',
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#888', maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { beginAtZero: true, ticks: { color: '#888', precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        },
+    },
+});
+</script>
 {% endblock %}

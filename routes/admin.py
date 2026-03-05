@@ -277,6 +277,167 @@ def delete_user(uid):
     return redirect(url_for("admin.users"))
 
 
+@admin_bp.route("/reset-password/<int:uid>", methods=["POST"])
+@admin_required
+def reset_password(uid):
+    """Admin resets a user's password."""
+    u = User.query.get_or_404(uid)
+    new_pw = request.form.get("new_password", "").strip()
+    if not new_pw or len(new_pw) < 4:
+        flash("Password must be at least 4 characters.", "danger")
+        return redirect(url_for("admin.users"))
+    if u.role == "super_admin" and current_user.role != "super_admin":
+        flash("Cannot reset super admin password.", "danger")
+        return redirect(url_for("admin.users"))
+    u.set_password(new_pw)
+    db.session.add(ActivityLog(user_id=current_user.id, action="reset_password", details=f"Reset password for {u.user_id}"))
+    db.session.commit()
+    flash(f"Password for '{u.user_id}' has been reset.", "success")
+    return redirect(url_for("admin.users"))
+
+
+@admin_bp.route("/bulk-ban", methods=["POST"])
+@admin_required
+def bulk_ban():
+    """Ban multiple selected users at once."""
+    user_ids = request.form.getlist("user_ids")
+    if not user_ids:
+        flash("No users selected.", "warning")
+        return redirect(url_for("admin.users"))
+    count = 0
+    for uid in user_ids:
+        u = User.query.get(int(uid))
+        if u and u.role not in ("super_admin",) and not u.is_banned:
+            u.is_banned = True
+            count += 1
+    db.session.add(ActivityLog(user_id=current_user.id, action="bulk_ban", details=f"Banned {count} users"))
+    db.session.commit()
+    flash(f"Banned {count} users.", "warning")
+    return redirect(url_for("admin.users"))
+
+
+@admin_bp.route("/bulk-revoke", methods=["POST"])
+@admin_required
+def bulk_revoke_users():
+    """Revoke numbers from multiple selected users (from Users page)."""
+    user_ids = request.form.getlist("user_ids")
+    if not user_ids:
+        flash("No users selected.", "warning")
+        return redirect(url_for("admin.users"))
+    total = 0
+    for uid in user_ids:
+        nums = Number.query.filter_by(allocated_to_id=int(uid)).update(
+            {"allocated_to_id": None, "allocated_by_id": None, "allocated_at": None}
+        )
+        total += nums
+    db.session.add(ActivityLog(user_id=current_user.id, action="bulk_revoke_users", details=f"Revoked {total} numbers from {len(user_ids)} users"))
+    db.session.commit()
+    flash(f"Revoked {total} numbers from {len(user_ids)} users.", "info")
+    return redirect(url_for("admin.users"))
+
+
+@admin_bp.route("/bulk-delete", methods=["POST"])
+@admin_required
+def bulk_delete_users():
+    """Delete multiple selected users at once."""
+    user_ids = request.form.getlist("user_ids")
+    if not user_ids:
+        flash("No users selected.", "warning")
+        return redirect(url_for("admin.users"))
+    count = 0
+    for uid in user_ids:
+        u = User.query.get(int(uid))
+        if u and u.role not in ("super_admin",):
+            if u.role == "admin" and current_user.role != "super_admin":
+                continue
+            Number.query.filter_by(allocated_to_id=u.id).update({"allocated_to_id": None, "allocated_by_id": None, "allocated_at": None})
+            db.session.delete(u)
+            count += 1
+    db.session.add(ActivityLog(user_id=current_user.id, action="bulk_delete", details=f"Deleted {count} users"))
+    db.session.commit()
+    flash(f"Deleted {count} users.", "info")
+    return redirect(url_for("admin.users"))
+
+
+@admin_bp.route("/transfer-numbers", methods=["POST"])
+@admin_required
+def transfer_numbers():
+    """Transfer numbers from one user to another without revoking first."""
+    from_uid = request.form.get("from_user_id", type=int)
+    to_uid = request.form.get("to_user_id", type=int)
+    country = request.form.get("country", "").strip()
+
+    if not from_uid or not to_uid:
+        flash("Both source and destination users are required.", "danger")
+        return redirect(url_for("admin.users"))
+    if from_uid == to_uid:
+        flash("Source and destination users must be different.", "danger")
+        return redirect(url_for("admin.users"))
+
+    from_user = User.query.get_or_404(from_uid)
+    to_user = User.query.get_or_404(to_uid)
+
+    q = Number.query.filter_by(allocated_to_id=from_uid)
+    if country:
+        q = q.filter_by(country=country)
+
+    count = q.update({
+        "allocated_to_id": to_uid,
+        "allocated_by_id": current_user.id,
+        "allocated_at": datetime.utcnow(),
+    })
+
+    db.session.add(ActivityLog(
+        user_id=current_user.id, action="transfer_numbers",
+        details=f"Transferred {count} numbers from {from_user.user_id} to {to_user.user_id}" + (f" ({country})" if country else ""),
+    ))
+    db.session.commit()
+    flash(f"Transferred {count} numbers from {from_user.user_id} to {to_user.user_id}.", "success")
+    return redirect(url_for("admin.users"))
+
+
+@admin_bp.route("/user-detail/<int:uid>")
+@admin_required
+def user_detail(uid):
+    """Full user detail page: numbers, SMS history, balance, activity."""
+    u = User.query.get_or_404(uid)
+
+    # Allocated numbers
+    numbers = Number.query.filter_by(allocated_to_id=u.id).order_by(Number.allocated_at.desc()).all()
+
+    # SMS history (last 100)
+    sms_list = SMS.query.filter_by(user_id=u.id).order_by(SMS.received_at.desc()).limit(100).all()
+
+    # SMS per day for chart (last 14 days)
+    from sqlalchemy import func
+    fourteen_days_ago = datetime.utcnow() - timedelta(days=14)
+    daily_sms = db.session.query(
+        func.date(SMS.received_at).label("day"),
+        func.count(SMS.id).label("count"),
+    ).filter(
+        SMS.user_id == u.id,
+        SMS.received_at >= fourteen_days_ago,
+    ).group_by(func.date(SMS.received_at)).order_by(func.date(SMS.received_at)).all()
+
+    chart_labels = [str(row.day) for row in daily_sms]
+    chart_data = [row.count for row in daily_sms]
+
+    # Activity logs
+    logs = ActivityLog.query.filter_by(user_id=u.id).order_by(ActivityLog.created_at.desc()).limit(50).all()
+
+    # Stats
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    sms_today = SMS.query.filter(SMS.user_id == u.id, SMS.received_at >= today_start).count()
+    total_sms = SMS.query.filter_by(user_id=u.id).count()
+
+    return render_template("admin/user_detail.html",
+        u=u, numbers=numbers, sms_list=sms_list,
+        logs=logs, sms_today=sms_today, total_sms=total_sms,
+        chart_labels=chart_labels, chart_data=chart_data,
+        country_flags=COUNTRY_FLAGS,
+    )
+
+
 # ═══════════════════════════════════════════
 #  NUMBER MANAGEMENT
 # ═══════════════════════════════════════════
@@ -688,12 +849,41 @@ def sms_stats():
 
     # Per-service breakdown
     from sqlalchemy import func
-    service_stats = db.session.query(SMS.service, func.count(SMS.id)).group_by(SMS.service).all()
+    service_stats = db.session.query(SMS.service, func.count(SMS.id)).group_by(SMS.service).order_by(func.count(SMS.id).desc()).all()
+
+    # Per-country breakdown
+    country_stats = db.session.query(SMS.country, func.count(SMS.id)).group_by(SMS.country).order_by(func.count(SMS.id).desc()).all()
+
+    # Daily volume chart (last 30 days)
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    daily_sms = db.session.query(
+        func.date(SMS.received_at).label("day"),
+        func.count(SMS.id).label("count"),
+    ).filter(
+        SMS.received_at >= thirty_days_ago,
+    ).group_by(func.date(SMS.received_at)).order_by(func.date(SMS.received_at)).all()
+
+    chart_labels = [str(row.day) for row in daily_sms]
+    chart_data = [row.count for row in daily_sms]
+
+    # Top 10 services for chart
+    top_services = service_stats[:10]
+    svc_labels = [s[0] for s in top_services]
+    svc_data = [s[1] for s in top_services]
+
+    # Top 10 countries for chart
+    top_countries = country_stats[:10]
+    country_labels = [c[0] for c in top_countries]
+    country_data = [c[1] for c in top_countries]
 
     return render_template("admin/sms_stats.html",
         sms_list=sms_list, date_from=date_from, date_to=date_to,
         total_all=total_all, today_count=today_count,
-        service_stats=service_stats,
+        service_stats=service_stats, country_stats=country_stats,
+        chart_labels=chart_labels, chart_data=chart_data,
+        svc_labels=svc_labels, svc_data=svc_data,
+        country_labels=country_labels, country_data=country_data,
+        country_flags=COUNTRY_FLAGS,
     )
 
 
