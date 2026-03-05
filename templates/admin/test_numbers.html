@@ -20,7 +20,12 @@
             <div class="row g-3">
                 <div class="col-md-4">
                     <label class="form-label">Country (Range)</label>
-                    <input type="text" name="country" class="form-control" placeholder="e.g. United States" required>
+                    <select name="country" class="form-select" required>
+                        <option value="" disabled selected>Select a country...</option>
+                        {% for c in country_flags.keys()|sort %}
+                        <option value="{{ c }}">{{ country_flags[c] }} {{ c }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Upload .txt files</label>

@@ -6,7 +6,7 @@ from functools import wraps
 from models import (
     db, User, Number, NumberBatch, SMS, Withdrawal, Setting,
     ActivityLog, Announcement, TestNumber, TestSMS, get_setting, set_setting,
-    AutoRevokeSchedule,
+    AutoRevokeSchedule, detect_country_from_phone, PHONE_COUNTRY_CODES,
 )
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -1160,5 +1160,47 @@ def otp_fetcher_test():
         np_enabled=get_setting("np_enabled", "1"),
         test_result=result_msg,
         test_sms=sms_rows,
+    )
+
+
+# ═══════════════════════════════════════════
+#  LIVE SMS  (all recent SMS with censored messages)
+# ═══════════════════════════════════════════
+@admin_bp.route("/live-sms")
+@admin_required
+def live_sms():
+    date_from = request.args.get("from", "")
+    date_to = request.args.get("to", "")
+    q = SMS.query
+
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            q = q.filter(SMS.received_at >= dt_from)
+        except ValueError:
+            pass
+    else:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        q = q.filter(SMS.received_at >= today_start)
+
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            q = q.filter(SMS.received_at < dt_to)
+        except ValueError:
+            pass
+
+    sms_list = q.order_by(SMS.received_at.desc()).limit(500).all()
+
+    # Detect country from phone number if not already set
+    for sms in sms_list:
+        if not sms.country:
+            sms._detected_country = detect_country_from_phone(sms.phone_number)
+        else:
+            sms._detected_country = sms.country
+
+    return render_template("live_sms.html",
+        sms_list=sms_list, date_from=date_from, date_to=date_to,
+        country_flags=COUNTRY_FLAGS, role_prefix="admin",
     )
 

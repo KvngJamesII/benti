@@ -105,9 +105,81 @@ class SMS(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     received_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    @property
+    def censored_message(self):
+        """Return the message with content replaced by asterisks."""
+        if not self.message:
+            return ""
+        words = self.message.split()
+        censored = []
+        for w in words:
+            if len(w) <= 2:
+                censored.append("*" * len(w))
+            else:
+                censored.append(w[0] + "*" * (len(w) - 2) + w[-1])
+        return " ".join(censored)
+
 
 # ═══════════════════════════════════════════
-#  WITHDRAWAL
+#  PHONE COUNTRY CODE DETECTION
+# ═══════════════════════════════════════════
+PHONE_COUNTRY_CODES = {
+    "93": "Afghanistan", "355": "Albania", "213": "Algeria", "376": "Andorra",
+    "244": "Angola", "54": "Argentina", "374": "Armenia", "61": "Australia",
+    "43": "Austria", "994": "Azerbaijan", "973": "Bahrain", "880": "Bangladesh",
+    "375": "Belarus", "32": "Belgium", "229": "Benin", "975": "Bhutan",
+    "591": "Bolivia", "55": "Brazil", "359": "Bulgaria", "226": "Burkina Faso",
+    "855": "Cambodia", "237": "Cameroon", "1": "United States", "235": "Chad",
+    "56": "Chile", "86": "China", "57": "Colombia", "242": "Congo",
+    "506": "Costa Rica", "385": "Croatia", "53": "Cuba", "357": "Cyprus",
+    "420": "Czech Republic", "45": "Denmark", "1809": "Dominican Republic",
+    "1829": "Dominican Republic", "1849": "Dominican Republic",
+    "593": "Ecuador", "20": "Egypt", "503": "El Salvador", "372": "Estonia",
+    "251": "Ethiopia", "358": "Finland", "33": "France", "241": "Gabon",
+    "220": "Gambia", "995": "Georgia", "49": "Germany", "233": "Ghana",
+    "30": "Greece", "502": "Guatemala", "224": "Guinea", "509": "Haiti",
+    "504": "Honduras", "852": "Hong Kong", "36": "Hungary", "354": "Iceland",
+    "91": "India", "62": "Indonesia", "98": "Iran", "964": "Iraq",
+    "353": "Ireland", "972": "Israel", "39": "Italy", "225": "Ivory Coast",
+    "1876": "Jamaica", "81": "Japan", "962": "Jordan", "7": "Russia",
+    "254": "Kenya", "965": "Kuwait", "996": "Kyrgyzstan", "856": "Laos",
+    "371": "Latvia", "961": "Lebanon", "231": "Liberia", "218": "Libya",
+    "370": "Lithuania", "352": "Luxembourg", "261": "Madagascar", "60": "Malaysia",
+    "223": "Mali", "356": "Malta", "52": "Mexico", "373": "Moldova",
+    "377": "Monaco", "976": "Mongolia", "382": "Montenegro", "212": "Morocco",
+    "258": "Mozambique", "95": "Myanmar", "264": "Namibia", "977": "Nepal",
+    "31": "Netherlands", "64": "New Zealand", "505": "Nicaragua", "227": "Niger",
+    "234": "Nigeria", "850": "North Korea", "389": "North Macedonia", "47": "Norway",
+    "968": "Oman", "92": "Pakistan", "507": "Panama", "595": "Paraguay",
+    "51": "Peru", "63": "Philippines", "48": "Poland", "351": "Portugal",
+    "974": "Qatar", "40": "Romania", "250": "Rwanda",
+    "966": "Saudi Arabia", "221": "Senegal", "381": "Serbia",
+    "232": "Sierra Leone", "65": "Singapore", "421": "Slovakia",
+    "386": "Slovenia", "252": "Somalia", "27": "South Africa",
+    "82": "South Korea", "34": "Spain", "94": "Sri Lanka", "249": "Sudan",
+    "46": "Sweden", "41": "Switzerland", "963": "Syria", "886": "Taiwan",
+    "992": "Tajikistan", "255": "Tanzania", "66": "Thailand", "228": "Togo",
+    "216": "Tunisia", "90": "Turkey", "993": "Turkmenistan", "256": "Uganda",
+    "380": "Ukraine", "971": "United Arab Emirates", "44": "United Kingdom",
+    "598": "Uruguay", "998": "Uzbekistan",
+    "58": "Venezuela", "84": "Vietnam", "967": "Yemen", "260": "Zambia",
+    "263": "Zimbabwe",
+}
+
+# Pre-sort by prefix length descending so longer prefixes match first
+_SORTED_PREFIXES = sorted(PHONE_COUNTRY_CODES.keys(), key=len, reverse=True)
+
+
+def detect_country_from_phone(phone_number):
+    """Detect country name from a phone number using country calling codes.
+    Returns country name or None."""
+    if not phone_number:
+        return None
+    clean = phone_number.replace(" ", "").replace("-", "").replace("+", "").replace("(", "").replace(")", "")
+    for prefix in _SORTED_PREFIXES:
+        if clean.startswith(prefix):
+            return PHONE_COUNTRY_CODES[prefix]
+    return None
 # ═══════════════════════════════════════════
 class Withdrawal(db.Model):
     __tablename__ = "withdrawals"

@@ -322,3 +322,46 @@ def test_otps():
 
     sms_list = q.order_by(TestSMS.received_at.desc()).all()
     return render_template("user/test_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to)
+
+
+# ═══════════════════════════════════════════
+#  LIVE SMS  (all recent SMS with censored messages)
+# ═══════════════════════════════════════════
+@user_bp.route("/live-sms")
+@user_required
+def live_sms():
+    from routes.admin import COUNTRY_FLAGS
+    from models import detect_country_from_phone
+    date_from = request.args.get("from", "")
+    date_to = request.args.get("to", "")
+    q = SMS.query
+
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            q = q.filter(SMS.received_at >= dt_from)
+        except ValueError:
+            pass
+    else:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        q = q.filter(SMS.received_at >= today_start)
+
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            q = q.filter(SMS.received_at < dt_to)
+        except ValueError:
+            pass
+
+    sms_list = q.order_by(SMS.received_at.desc()).limit(500).all()
+
+    for sms in sms_list:
+        if not sms.country:
+            sms._detected_country = detect_country_from_phone(sms.phone_number)
+        else:
+            sms._detected_country = sms.country
+
+    return render_template("live_sms.html",
+        sms_list=sms_list, date_from=date_from, date_to=date_to,
+        country_flags=COUNTRY_FLAGS, role_prefix="user",
+    )
