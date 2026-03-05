@@ -40,6 +40,32 @@ def create_app():
     app.register_blueprint(mod_bp)
     app.register_blueprint(user_bp)
 
+    # ── Maintenance mode middleware ──
+    from models import get_setting
+    from flask import render_template as rt, request as req
+    from flask_login import current_user as cu
+
+    @app.before_request
+    def check_maintenance_mode():
+        # Skip for static files
+        if req.endpoint and req.endpoint == 'static':
+            return
+        # Skip the maintenance page itself
+        if req.endpoint == 'maintenance':
+            return
+        # Skip login/logout so admins/mods can still authenticate
+        if req.endpoint in ('auth.login', 'auth.logout'):
+            return
+        # Only block if maintenance is on
+        if get_setting('maintenance_mode', 'off') != 'on':
+            return
+        # Allow admins and mods through
+        if cu and cu.is_authenticated and cu.role in ('admin', 'super_admin', 'mod'):
+            return
+        # Everyone else sees maintenance page
+        msg = get_setting('maintenance_message', "We'll be back shortly.")
+        return rt('maintenance.html', message=msg), 503
+
     # Create tables + seed admin
     with app.app_context():
         db.create_all()

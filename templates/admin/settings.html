@@ -59,4 +59,55 @@
         </div>
     </div>
 </div>
+
+{# ═══════════ MAINTENANCE MODE ═══════════ #}
+<div class="row mt-4">
+    <div class="col-lg-8">
+        <div class="card eden-card {% if maintenance_mode == 'on' %}border-warning{% endif %}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-cone-striped"></i> Maintenance Mode</span>
+                {% if maintenance_mode == 'on' %}
+                    <span class="badge bg-warning text-dark">ACTIVE</span>
+                {% else %}
+                    <span class="badge bg-success">OFF</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if maintenance_mode == 'on' %}
+                <div class="alert alert-warning d-flex align-items-center mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>
+                        <strong>Maintenance mode is ON.</strong> All regular users are being redirected to the maintenance page.
+                        Admins and mods can still access the panel normally.
+                    </div>
+                </div>
+                <p class="text-muted mb-2">Current message shown to users:</p>
+                <div class="alert alert-secondary">
+                    <i class="bi bi-chat-square-text me-1"></i> {{ maintenance_message }}
+                </div>
+                <form method="POST" action="{{ url_for('admin.toggle_maintenance') }}">
+                    <input type="hidden" name="action" value="off">
+                    <button type="submit" class="btn btn-success" onclick="return confirm('Turn OFF maintenance mode? Users will be able to access the site again.')">
+                        <i class="bi bi-toggle2-off"></i> Disable Maintenance Mode
+                    </button>
+                </form>
+                {% else %}
+                <p class="text-muted mb-3">When enabled, all regular users will be redirected to a maintenance page. Admins and mods can still log in and use the panel normally.</p>
+                <form method="POST" action="{{ url_for('admin.toggle_maintenance') }}">
+                    <input type="hidden" name="action" value="on">
+                    <div class="mb-3">
+                        <label for="maintenance_message" class="form-label">Maintenance Banner Message</label>
+                        <textarea class="form-control" id="maintenance_message" name="maintenance_message" rows="3"
+                                  placeholder="We'll be back shortly.">{{ maintenance_message }}</textarea>
+                        <div class="form-text">This message will be displayed to users on the maintenance page.</div>
+                    </div>
+                    <button type="submit" class="btn btn-warning" onclick="return confirm('Enable maintenance mode? All regular users will be locked out.')">
+                        <i class="bi bi-toggle2-on"></i> Enable Maintenance Mode
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

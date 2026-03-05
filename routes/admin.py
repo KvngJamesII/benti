@@ -667,7 +667,37 @@ def settings():
         min_withdrawal=get_setting("min_withdrawal", "5"),
         max_numbers_per_user=get_setting("max_numbers_per_user", "100"),
         withdrawal_day=get_setting("withdrawal_day", "Tuesday"),
+        maintenance_mode=get_setting("maintenance_mode", "off"),
+        maintenance_message=get_setting("maintenance_message", "We'll be back shortly."),
     )
+
+
+@admin_bp.route("/toggle-maintenance", methods=["POST"])
+@admin_required
+def toggle_maintenance():
+    """Toggle maintenance mode on/off with a custom banner message."""
+    action = request.form.get("action", "off")  # "on" or "off"
+    message = request.form.get("maintenance_message", "We'll be back shortly.").strip()
+
+    if action == "on":
+        set_setting("maintenance_mode", "on")
+        set_setting("maintenance_message", message or "We'll be back shortly.")
+        db.session.add(ActivityLog(
+            user_id=current_user.id, action="maintenance_on",
+            details=f"Enabled maintenance mode: {message}",
+        ))
+        db.session.commit()
+        flash("Maintenance mode ENABLED. Users will see the maintenance page.", "warning")
+    else:
+        set_setting("maintenance_mode", "off")
+        db.session.add(ActivityLog(
+            user_id=current_user.id, action="maintenance_off",
+            details="Disabled maintenance mode",
+        ))
+        db.session.commit()
+        flash("Maintenance mode DISABLED. Site is back to normal.", "success")
+
+    return redirect(url_for("admin.settings"))
 
 
 # ═══════════════════════════════════════════
