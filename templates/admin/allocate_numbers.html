@@ -9,15 +9,15 @@
         <div class="card eden-card">
             <div class="card-body">
                 <form method="POST">
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label for="userSearch" class="form-label">Select User</label>
-                        <input type="text" class="form-control mb-1" id="userSearch" placeholder="Search user ID..." autocomplete="off">
-                        <select class="form-select" id="user_id" name="user_id" required>
-                            <option value="" disabled selected>Choose a user...</option>
-                            {% for u in users %}
-                            <option value="{{ u.id }}">{{ u.user_id }} ({{ u.role }})</option>
-                            {% endfor %}
-                        </select>
+                        <input type="hidden" id="user_id" name="user_id" required>
+                        <input type="text" class="form-control" id="userSearch" placeholder="Type user ID to search..." autocomplete="off">
+                        <div id="userDropdown" class="autocomplete-dropdown"></div>
+                        <div id="userSelected" class="mt-1" style="display:none;">
+                            <span class="badge bg-eden" id="selectedBadge"></span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-1" id="clearUser" style="padding:0 6px;font-size:.75rem;">✕</button>
+                        </div>
                     </div>
 
                     <div class="mb-3">
