@@ -169,6 +169,11 @@ class SMSPoller:
                 if admin:
                     target_user_id = admin.id
 
+            # ── OTP limit: max 10 per phone number ──
+            otp_count = SMS.query.filter_by(phone_number=phone).count()
+            if otp_count >= 10:
+                continue
+
             sms_rec = SMS(
                 external_id=ext_id,
                 phone_number=phone,
