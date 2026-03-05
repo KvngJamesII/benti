@@ -148,12 +148,15 @@ def my_otps():
     sms_list = q.order_by(SMS.received_at.desc()).all()
 
     from routes.admin import COUNTRY_FLAGS
-    from models import detect_country_from_phone
+    from models import detect_country_from_phone, ListPagination
     for sms in sms_list:
         detected = detect_country_from_phone(sms.phone_number)
         sms._detected_country = detected if detected else (sms.country or "Unknown")
 
-    return render_template("user/my_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to, country_flags=COUNTRY_FLAGS)
+    page = request.args.get("page", 1, type=int)
+    pg = ListPagination(sms_list, page, 20)
+
+    return render_template("user/my_otps.html", sms_list=pg.items, pagination=pg, date_from=date_from, date_to=date_to, country_flags=COUNTRY_FLAGS)
 
 
 # ═══════════════════════════════════════════
@@ -354,7 +357,7 @@ def test_otps():
     sms_list = q.order_by(TestSMS.received_at.desc()).all()
 
     from routes.admin import COUNTRY_FLAGS
-    from models import detect_country_from_phone
+    from models import detect_country_from_phone, ListPagination
     for sms in sms_list:
         detected = detect_country_from_phone(sms.phone_number)
         if detected:
@@ -362,7 +365,10 @@ def test_otps():
         else:
             sms._detected_country = sms.country or "Unknown"
 
-    return render_template("user/test_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to, country_flags=COUNTRY_FLAGS)
+    page = request.args.get("page", 1, type=int)
+    pg = ListPagination(sms_list, page, 20)
+
+    return render_template("user/test_otps.html", sms_list=pg.items, pagination=pg, date_from=date_from, date_to=date_to, country_flags=COUNTRY_FLAGS)
 
 
 # ═══════════════════════════════════════════
@@ -400,7 +406,12 @@ def live_sms():
         detected = detect_country_from_phone(sms.phone_number)
         sms._detected_country = detected or sms.country or ''
 
+    from models import ListPagination
+    page = request.args.get("page", 1, type=int)
+    pg = ListPagination(sms_list, page, 20)
+
     return render_template("live_sms.html",
-        sms_list=sms_list, date_from=date_from, date_to=date_to,
+        sms_list=pg.items, pagination=pg,
+        date_from=date_from, date_to=date_to,
         country_flags=COUNTRY_FLAGS, role_prefix="user",
     )

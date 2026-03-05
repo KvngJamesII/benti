@@ -1,9 +1,40 @@
 from datetime import datetime
+from math import ceil
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
+
+
+# ═══════════════════════════════════════════
+#  SIMPLE PAGINATION HELPER  (for in-memory lists)
+# ═══════════════════════════════════════════
+class ListPagination:
+    """Wraps a plain Python list into a pagination-like object."""
+    def __init__(self, items, page, per_page):
+        self.total = len(items)
+        self.per_page = per_page
+        self.page = max(1, min(page, self.pages or 1))
+        start = (self.page - 1) * per_page
+        self.items = items[start:start + per_page]
+        self.has_prev = self.page > 1
+        self.has_next = self.page < self.pages
+        self.prev_num = self.page - 1
+        self.next_num = self.page + 1
+
+    @property
+    def pages(self):
+        return ceil(self.total / self.per_page) if self.total else 1
+
+    def iter_pages(self, left_edge=1, left_current=1, right_current=2, right_edge=1):
+        pages = []
+        for p in range(1, self.pages + 1):
+            if p <= left_edge or p > self.pages - right_edge or abs(p - self.page) <= max(left_current, right_current):
+                pages.append(p)
+            elif pages and pages[-1] is not None:
+                pages.append(None)
+        return pages
 
 
 # ═══════════════════════════════════════════

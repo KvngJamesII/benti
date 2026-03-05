@@ -7,6 +7,7 @@ from models import (
     db, User, Number, NumberBatch, SMS, Withdrawal, Setting,
     ActivityLog, Announcement, TestNumber, TestSMS, get_setting, set_setting,
     AutoRevokeSchedule, detect_country_from_phone, PHONE_COUNTRY_CODES,
+    ListPagination,
 )
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -402,11 +403,17 @@ def user_detail(uid):
     """Full user detail page: numbers, SMS history, balance, activity."""
     u = User.query.get_or_404(uid)
 
-    # Allocated numbers
-    numbers = Number.query.filter_by(allocated_to_id=u.id).order_by(Number.allocated_at.desc()).all()
+    # Paginated allocated numbers (10 per page)
+    num_page = request.args.get("np", 1, type=int)
+    numbers_pg = Number.query.filter_by(allocated_to_id=u.id).order_by(
+        Number.allocated_at.desc()
+    ).paginate(page=num_page, per_page=10, error_out=False)
 
-    # SMS history (last 100)
-    sms_list = SMS.query.filter_by(user_id=u.id).order_by(SMS.received_at.desc()).limit(100).all()
+    # Paginated SMS history (20 per page)
+    sms_page = request.args.get("sp", 1, type=int)
+    sms_pg = SMS.query.filter_by(user_id=u.id).order_by(
+        SMS.received_at.desc()
+    ).paginate(page=sms_page, per_page=20, error_out=False)
 
     # SMS per day for chart (last 14 days)
     from sqlalchemy import func
@@ -423,7 +430,10 @@ def user_detail(uid):
     chart_data = [row.count for row in daily_sms]
 
     # Activity logs
-    logs = ActivityLog.query.filter_by(user_id=u.id).order_by(ActivityLog.created_at.desc()).limit(50).all()
+    log_page = request.args.get("lp", 1, type=int)
+    logs_pg = ActivityLog.query.filter_by(user_id=u.id).order_by(
+        ActivityLog.created_at.desc()
+    ).paginate(page=log_page, per_page=20, error_out=False)
 
     # Stats
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -431,8 +441,8 @@ def user_detail(uid):
     total_sms = SMS.query.filter_by(user_id=u.id).count()
 
     return render_template("admin/user_detail.html",
-        u=u, numbers=numbers, sms_list=sms_list,
-        logs=logs, sms_today=sms_today, total_sms=total_sms,
+        u=u, numbers_pg=numbers_pg, sms_pg=sms_pg,
+        logs_pg=logs_pg, sms_today=sms_today, total_sms=total_sms,
         chart_labels=chart_labels, chart_data=chart_data,
         country_flags=COUNTRY_FLAGS,
     )
@@ -866,6 +876,9 @@ def sms_stats():
         else:
             sms._detected_country = sms.country or "Unknown"
 
+    page = request.args.get("page", 1, type=int)
+    sms_pg = ListPagination(sms_list, page, 20)
+
     # Stats
     total_all = SMS.query.count()
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -907,7 +920,8 @@ def sms_stats():
     country_data = [c[1] for c in top_countries]
 
     return render_template("admin/sms_stats.html",
-        sms_list=sms_list, date_from=date_from, date_to=date_to,
+        sms_list=sms_pg.items, pagination=sms_pg,
+        date_from=date_from, date_to=date_to,
         total_all=total_all, today_count=today_count,
         service_stats=service_stats, country_stats=country_stats,
         chart_labels=chart_labels, chart_data=chart_data,
@@ -1484,8 +1498,13 @@ def live_sms():
         detected = detect_country_from_phone(sms.phone_number)
         sms._detected_country = detected or sms.country or ''
 
+    # Paginate for display (20 per page)
+    page = request.args.get("page", 1, type=int)
+    admin_sms_pg = ListPagination(sms_list, page, 20)
+
     return render_template("live_sms.html",
-        sms_list=sms_list, date_from=date_from, date_to=date_to,
+        sms_list=admin_sms_pg.items, pagination=admin_sms_pg,
+        date_from=date_from, date_to=date_to,
         country_flags=COUNTRY_FLAGS, role_prefix="admin",
     )
 

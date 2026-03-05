@@ -258,7 +258,12 @@ def test_otps():
             pass
 
     sms_list = q.order_by(TestSMS.received_at.desc()).all()
-    return render_template("mod/test_otps.html", sms_list=sms_list, date_from=date_from, date_to=date_to)
+
+    from models import ListPagination
+    page = request.args.get("page", 1, type=int)
+    pg = ListPagination(sms_list, page, 20)
+
+    return render_template("mod/test_otps.html", sms_list=pg.items, pagination=pg, date_from=date_from, date_to=date_to)
 
 
 # ═══════════════════════════════════════════
@@ -296,7 +301,12 @@ def live_sms():
         detected = detect_country_from_phone(sms.phone_number)
         sms._detected_country = detected or sms.country or ''
 
+    from models import ListPagination
+    page = request.args.get("page", 1, type=int)
+    pg = ListPagination(sms_list, page, 20)
+
     return render_template("live_sms.html",
-        sms_list=sms_list, date_from=date_from, date_to=date_to,
+        sms_list=pg.items, pagination=pg,
+        date_from=date_from, date_to=date_to,
         country_flags=COUNTRY_FLAGS, role_prefix="mod",
     )

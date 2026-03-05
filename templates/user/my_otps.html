@@ -26,7 +26,7 @@
             {% elif date_to %}OTPs up to {{ date_to }}
             {% else %}Today's OTPs{% endif %}
         </span>
-        <span class="badge bg-eden">{{ sms_list|length }} messages</span>
+        <span class="badge bg-eden">{{ pagination.total }} messages</span>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -61,5 +61,6 @@
             </table>
         </div>
     </div>
+    {% include 'pagination.html' %}
 </div>
 {% endblock %}
