@@ -1192,12 +1192,10 @@ def live_sms():
 
     sms_list = q.order_by(SMS.received_at.desc()).limit(500).all()
 
-    # Detect country from phone number if not already set
+    # Always try phone prefix detection first, fall back to stored country
     for sms in sms_list:
-        if not sms.country:
-            sms._detected_country = detect_country_from_phone(sms.phone_number)
-        else:
-            sms._detected_country = sms.country
+        detected = detect_country_from_phone(sms.phone_number)
+        sms._detected_country = detected or sms.country or ''
 
     return render_template("live_sms.html",
         sms_list=sms_list, date_from=date_from, date_to=date_to,

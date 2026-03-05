@@ -4,7 +4,7 @@
 {% block content %}
 <h4 class="mb-4"><i class="bi bi-broadcast text-eden"></i> Live SMS</h4>
 
-{# Date range filter #}
+{# Date range filter + Service search #}
 <div class="card eden-card mb-4">
     <div class="card-body">
         <form method="GET" class="d-flex gap-2 align-items-center flex-wrap">
@@ -12,6 +12,8 @@
             <input type="date" class="form-control form-control-sm" name="from" value="{{ date_from }}" style="max-width: 170px;">
             <label class="form-label mb-0 me-1 ms-2">To:</label>
             <input type="date" class="form-control form-control-sm" name="to" value="{{ date_to }}" style="max-width: 170px;">
+            <label class="form-label mb-0 me-1 ms-2">Service:</label>
+            <input type="text" class="form-control form-control-sm" id="serviceSearch" placeholder="Search service..." style="max-width: 180px;">
             <button type="submit" class="btn btn-sm btn-eden ms-2">Filter</button>
             <a href="{{ url_for(role_prefix ~ '.live_sms') }}" class="btn btn-sm btn-outline-secondary">Today</a>
         </form>
@@ -19,18 +21,17 @@
 </div>
 
 <div class="card eden-card">
-    <div class="card-header d-flex justify-content-between">
+    <div class="card-header">
         <span>
             {% if date_from and date_to %}Live SMS from {{ date_from }} to {{ date_to }}
             {% elif date_from %}Live SMS from {{ date_from }}
             {% elif date_to %}Live SMS up to {{ date_to }}
             {% else %}Today's Live SMS{% endif %}
         </span>
-        <span class="badge bg-eden">{{ sms_list|length }} messages</span>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-dark table-hover mb-0">
+            <table class="table table-dark table-hover mb-0" id="smsTable">
                 <thead>
                     <tr>
                         <th>Service</th>
@@ -45,7 +46,7 @@
                 <tr>
                     <td><strong>{{ sms.service or '-' }}</strong></td>
                     <td>
-                        {% set detected = sms._detected_country or sms.country or '' %}
+                        {% set detected = sms._detected_country or '' %}
                         {% if detected %}
                             {{ country_flags.get(detected, '🏳️') }} {{ detected }}
                         {% else %}
@@ -69,4 +70,30 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('serviceSearch');
+    const table = document.getElementById('smsTable');
+    if (!searchInput || !table) return;
+
+    searchInput.addEventListener('input', function() {
+        const filter = this.value.toLowerCase();
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(function(row) {
+            const serviceCell = row.querySelector('td:first-child');
+            if (!serviceCell) return;
+            const text = serviceCell.textContent.toLowerCase();
+            row.style.display = text.includes(filter) ? '' : 'none';
+        });
+    });
+
+    // Prevent service search from submitting with the date form
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') e.preventDefault();
+    });
+});
+</script>
 {% endblock %}
